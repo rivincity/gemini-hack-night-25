@@ -17,15 +17,23 @@ def upload_batch():
         user_id = user.user.id
 
         # Get files from request
+        print(f"📥 Received upload request for user {user_id}")
+        print(f"📋 Request files keys: {list(request.files.keys())}")
+        print(f"📋 Content-Type: {request.content_type}")
+        
         if 'photos' not in request.files:
+            print(f"❌ ERROR: 'photos' key not found in request.files")
             return jsonify({'error': 'No photos provided'}), 400
 
         files = request.files.getlist('photos')
 
         if not files or len(files) == 0:
+            print(f"❌ ERROR: files list is empty")
             return jsonify({'error': 'No photos provided'}), 400
 
-        print(f"Processing {len(files)} photos for user {user_id}")
+        print(f"✅ Processing {len(files)} photos for user {user_id}")
+        for i, file in enumerate(files):
+            print(f"  Photo {i+1}: filename={file.filename}, content_type={file.content_type}")
 
         # Process photos in parallel
         processed_photos = []
@@ -38,11 +46,16 @@ def upload_batch():
 
             for future in as_completed(futures):
                 try:
-                    result = future.result()
+                    result = future.result(timeout=30)  # 30 second timeout per photo
                     if result:
                         processed_photos.append(result)
+                        print(f"✅ Added processed photo to results")
+                    else:
+                        print(f"⚠️ Photo processing returned None")
                 except Exception as e:
-                    print(f"Error processing photo: {str(e)}")
+                    print(f"❌ ERROR: Exception in photo processing: {str(e)}")
+                    import traceback
+                    traceback.print_exc()
 
         if not processed_photos:
             return jsonify({'error': 'Failed to process any photos'}), 500
@@ -61,31 +74,61 @@ def upload_batch():
 def process_single_photo(file, user_id: str) -> dict:
     """Process a single photo: extract EXIF, create thumbnail, upload"""
     try:
+        print(f"📸 Processing photo: {file.filename if file.filename else 'unnamed'}")
+        
         # Read file data
         file_data = file.read()
+        if not file_data or len(file_data) == 0:
+            print(f"❌ ERROR: Empty file data for {file.filename}")
+            return None
+        
+        print(f"✅ Read {len(file_data)} bytes from file")
 
         # Extract EXIF data
-        exif_data = extract_exif_data(file_data)
+        try:
+            exif_data = extract_exif_data(file_data)
+            print(f"✅ EXIF extracted: has_exif={exif_data.get('has_exif')}, location={exif_data.get('coordinates')}")
+        except Exception as exif_error:
+            print(f"⚠️ EXIF extraction error (non-fatal): {str(exif_error)}")
+            exif_data = {'has_exif': False, 'coordinates': None, 'capture_date': None}
 
         # Generate unique filename
         photo_id = str(uuid.uuid4())
-        file_extension = file.filename.split('.')[-1] if '.' in file.filename else 'jpg'
+        file_extension = file.filename.split('.')[-1] if file.filename and '.' in file.filename else 'jpg'
         filename = f"{photo_id}.{file_extension}"
+        print(f"📝 Generated filename: {filename}")
 
         # Upload original photo
-        file_path = f"photos/{user_id}/{filename}"
-        upload_file_to_storage('photos', file_path, file_data, file.content_type)
+        try:
+            file_path = f"photos/{user_id}/{filename}"
+            print(f"⬆️ Uploading to: {file_path}")
+            upload_file_to_storage('photos', file_path, file_data, file.content_type or 'image/jpeg')
+            print(f"✅ Original photo uploaded")
+        except Exception as upload_error:
+            print(f"❌ ERROR: Failed to upload original photo: {str(upload_error)}")
+            import traceback
+            traceback.print_exc()
+            return None
 
         # Get public URL
         photo_url = get_public_url('photos', file_path)
+        if not photo_url:
+            print(f"⚠️ WARNING: Could not get public URL for {file_path}")
 
         # Create and upload thumbnail
-        thumbnail_data = create_thumbnail(file_data)
-        thumbnail_path = f"thumbnails/{user_id}/{filename}"
-        upload_file_to_storage('photos', thumbnail_path, thumbnail_data, 'image/jpeg')
+        try:
+            print(f"🖼️ Creating thumbnail...")
+            thumbnail_data = create_thumbnail(file_data)
+            thumbnail_path = f"thumbnails/{user_id}/{filename}"
+            upload_file_to_storage('photos', thumbnail_path, thumbnail_data, 'image/jpeg')
+            print(f"✅ Thumbnail uploaded")
+        except Exception as thumb_error:
+            print(f"⚠️ WARNING: Thumbnail creation/upload failed (non-fatal): {str(thumb_error)}")
+            thumbnail_data = None
+            thumbnail_path = None
 
         # Get thumbnail URL
-        thumbnail_url = get_public_url('photos', thumbnail_path)
+        thumbnail_url = get_public_url('photos', thumbnail_path) if thumbnail_path else None
 
         # Build response
         photo_metadata = {
@@ -97,10 +140,13 @@ def process_single_photo(file, user_id: str) -> dict:
             'hasExif': exif_data.get('has_exif', False)
         }
 
+        print(f"✅ Successfully processed photo {photo_id}")
         return photo_metadata
 
     except Exception as e:
-        print(f"Error processing single photo: {str(e)}")
+        print(f"❌ ERROR: Error processing single photo: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return None
 
 
