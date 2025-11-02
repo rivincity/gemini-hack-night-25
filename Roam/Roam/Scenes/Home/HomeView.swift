@@ -8,10 +8,19 @@
 import SwiftUI
 import MapKit
 import CoreLocation
+import Combine
+
+// ✅ Fix: Make CLLocationCoordinate2D Equatable
+extension CLLocationCoordinate2D: Equatable {
+    public static func == (lhs: CLLocationCoordinate2D, rhs: CLLocationCoordinate2D) -> Bool {
+        lhs.latitude == rhs.latitude && lhs.longitude == rhs.longitude
+    }
+}
 
 struct HomeView: View {
     @State private var showAddVacation = false
     @State private var selectedVacationItem: VacationSheetItem?
+    @StateObject private var locationManager = LocationManager()
     @State private var cameraPosition: MapCameraPosition = .camera(
         MapCamera(
             centerCoordinate: CLLocationCoordinate2D(latitude: 20, longitude: 0),
@@ -46,11 +55,29 @@ struct HomeView: View {
                 }
                 .mapStyle(.hybrid(elevation: .realistic))
                 .mapControls {
-                    MapUserLocationButton()
                     MapCompass()
                     MapScaleView()
                 }
                 .ignoresSafeArea()
+                
+                // Custom Location Button (top right)
+                VStack {
+                    HStack {
+                        Spacer()
+                        Button(action: navigateToUserLocation) {
+                            Image(systemName: "location.fill")
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundColor(.white)
+                                .frame(width: 44, height: 44)
+                                .background(.ultraThinMaterial)
+                                .clipShape(Circle())
+                                .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
+                        }
+                        .padding(.trailing, 16)
+                        .padding(.top, 16)
+                    }
+                    Spacer()
+                }
                 
                 // Floating Action Button
                 VStack {
@@ -94,6 +121,24 @@ struct HomeView: View {
             .onAppear {
                 loadAnnotations()
             }
+            .onChange(of: locationManager.location) { oldValue, newValue in
+                // Navigate when location becomes available and we're waiting for it
+                if let newLocation = newValue,
+                   locationManager.shouldNavigateWhenLocationAvailable,
+                   oldValue == nil || oldValue?.coordinate != newLocation.coordinate {
+                    withAnimation(.easeInOut(duration: 1.0)) {
+                        cameraPosition = .camera(
+                            MapCamera(
+                                centerCoordinate: newLocation.coordinate,
+                                distance: 10000000,
+                                heading: 0,
+                                pitch: 0
+                            )
+                        )
+                    }
+                    locationManager.shouldNavigateWhenLocationAvailable = false
+                }
+            }
         }
     }
     
@@ -112,6 +157,67 @@ struct HomeView: View {
                         user: user
                     )
                 }
+            }
+        }
+    }
+    
+    private func navigateToUserLocation() {
+        if let location = locationManager.location {
+            // Navigate to user's location with a closer zoom level
+            withAnimation(.easeInOut(duration: 1.0)) {
+                cameraPosition = .camera(
+                    MapCamera(
+                        centerCoordinate: location.coordinate,
+                        distance: 10000000, // Closer zoom to see more detail (10,000 km)
+                        heading: 0,
+                        pitch: 0
+                    )
+                )
+            }
+        } else {
+            // Request location if not available
+            locationManager.shouldNavigateWhenLocationAvailable = true
+            locationManager.requestLocation()
+        }
+    }
+}
+
+// MARK: - Location Manager
+class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
+    private let manager = CLLocationManager()
+    @Published var location: CLLocation?
+    @Published var shouldNavigateWhenLocationAvailable = false
+    
+    override init() {
+        super.init()
+        manager.delegate = self
+        manager.desiredAccuracy = kCLLocationAccuracyBest
+    }
+    
+    func requestLocation() {
+        let status = manager.authorizationStatus
+        if status == .notDetermined {
+            manager.requestWhenInUseAuthorization()
+        } else if status == .authorizedWhenInUse || status == .authorizedAlways {
+            manager.requestLocation()
+        }
+    }
+    
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        location = locations.first
+        // Navigation will be handled by HomeView observing location changes via onChange
+    }
+    
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        print("Location error: \(error.localizedDescription)")
+        shouldNavigateWhenLocationAvailable = false
+    }
+    
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        let status = manager.authorizationStatus
+        if status == .authorizedWhenInUse || status == .authorizedAlways {
+            if shouldNavigateWhenLocationAvailable {
+                manager.requestLocation()
             }
         }
     }
@@ -144,4 +250,3 @@ struct VacationSheetItem: Identifiable {
 #Preview {
     HomeView()
 }
-
