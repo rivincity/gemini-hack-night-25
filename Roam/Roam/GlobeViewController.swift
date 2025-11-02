@@ -8,6 +8,7 @@
 import UIKit
 import MapKit
 import SwiftUI
+import PhotosUI
 
 class GlobeViewController: UIViewController {
     
@@ -129,19 +130,176 @@ class GlobeViewController: UIViewController {
         )
         
         alert.addAction(UIAlertAction(title: "Choose Photos", style: .default) { _ in
-            // TODO: Implement photo picker
-            self.showComingSoonAlert()
+            self.presentPhotoPicker()
         })
-        
+
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        
+
         present(alert, animated: true)
     }
-    
-    private func showComingSoonAlert() {
+
+    private func presentPhotoPicker() {
+        var configuration = PHPickerConfiguration()
+        configuration.filter = .images
+        configuration.selectionLimit = 0 // 0 = unlimited, allow batch selection
+
+        let picker = PHPickerViewController(configuration: configuration)
+        picker.delegate = self
+        present(picker, animated: true)
+    }
+
+    private func uploadPhotosAndGenerateItinerary(_ images: [UIImage]) {
+        // Show loading indicator
+        let loadingAlert = UIAlertController(title: "Creating Vacation", message: "Uploading photos and generating itinerary...", preferredStyle: .alert)
+        present(loadingAlert, animated: true)
+
+        Task {
+            do {
+                // Convert images to Data
+                let imageDataArray = images.compactMap { $0.jpegData(compressionQuality: 0.8) }
+
+                // Upload photos to backend
+                let uploadedPhotos = try await uploadPhotosBatch(imageDataArray)
+
+                if uploadedPhotos.isEmpty {
+                    await MainActor.run {
+                        loadingAlert.dismiss(animated: true) {
+                            self.showErrorAlert("No photos could be uploaded. Please try again.")
+                        }
+                    }
+                    return
+                }
+
+                // Generate itinerary with AI
+                let vacation = try await generateItineraryFromPhotos(uploadedPhotos)
+
+                // Dismiss loading and show success
+                await MainActor.run {
+                    loadingAlert.dismiss(animated: true) {
+                        self.showSuccessAlert(vacation)
+                        self.loadPins() // Reload to show new vacation
+                    }
+                }
+
+            } catch {
+                await MainActor.run {
+                    loadingAlert.dismiss(animated: true) {
+                        self.showErrorAlert("Failed to create vacation: \(error.localizedDescription)")
+                    }
+                }
+            }
+        }
+    }
+
+    private func uploadPhotosBatch(_ imageData: [Data]) async throws -> [PhotoMetadata] {
+        guard let url = URL(string: APIConfig.Endpoints.uploadPhotosBatch) else {
+            throw APIError.invalidResponse
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+
+        // Add auth token
+        if let token = AuthService.shared.authToken {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+
+        // Create multipart/form-data body
+        let boundary = UUID().uuidString
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+
+        var body = Data()
+
+        for (index, data) in imageData.enumerated() {
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"photos\"; filename=\"photo\(index).jpg\"\r\n".data(using: .utf8)!)
+            body.append("Content-Type: image/jpeg\r\n\r\n".data(using: .utf8)!)
+            body.append(data)
+            body.append("\r\n".data(using: .utf8)!)
+        }
+
+        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
+        request.httpBody = body
+
+        let (responseData, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw APIError.serverError((response as? HTTPURLResponse)?.statusCode ?? 500)
+        }
+
+        let uploadResponse = try JSONDecoder().decode(BatchUploadResponse.self, from: responseData)
+        return uploadResponse.photos
+    }
+
+    private func generateItineraryFromPhotos(_ photos: [PhotoMetadata]) async throws -> Vacation {
+        guard let url = URL(string: APIConfig.Endpoints.generateItinerary) else {
+            throw APIError.invalidResponse
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        if let token = AuthService.shared.authToken {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+
+        // Create request body
+        let requestBody: [String: Any] = [
+            "photos": photos.map { photo in
+                var dict: [String: Any] = [
+                    "imageURL": photo.imageURL,
+                    "captureDate": photo.captureDate ?? ""
+                ]
+                if let location = photo.location {
+                    dict["coordinates"] = [
+                        "latitude": location.latitude,
+                        "longitude": location.longitude
+                    ]
+                }
+                return dict
+            },
+            "title": "My Vacation"
+        ]
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+
+        let (responseData, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 201 else {
+            throw APIError.serverError((response as? HTTPURLResponse)?.statusCode ?? 500)
+        }
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let aiResponse = try decoder.decode(AIGenerationResponse.self, from: responseData)
+
+        return aiResponse.vacation
+    }
+
+    private func showSuccessAlert(_ vacation: Vacation) {
         let alert = UIAlertController(
-            title: "Coming Soon",
-            message: "Photo upload and AI itinerary generation will be available soon!",
+            title: "Vacation Created!",
+            message: "Your vacation \"\(vacation.title)\" has been created with AI-generated itinerary.",
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "View", style: .default) { _ in
+            // Navigate to vacation detail
+            self.showVacationDetail(vacation)
+        })
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        present(alert, animated: true)
+    }
+
+    private func showVacationDetail(_ vacation: Vacation) {
+        // You can implement this to show detail view
+        print("Show detail for vacation: \(vacation.title)")
+    }
+
+    private func showErrorAlert(_ message: String) {
+        let alert = UIAlertController(
+            title: "Error",
+            message: message,
             preferredStyle: .alert
         )
         alert.addAction(UIAlertAction(title: "OK", style: .default))
@@ -227,22 +385,76 @@ class VacationAnnotation: NSObject, MKAnnotation {
     }
 }
 
+// MARK: - PHPickerViewControllerDelegate
+extension GlobeViewController: PHPickerViewControllerDelegate {
+    func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+        picker.dismiss(animated: true)
+
+        guard !results.isEmpty else { return }
+
+        var selectedImages: [UIImage] = []
+        let group = DispatchGroup()
+
+        for result in results {
+            group.enter()
+            result.itemProvider.loadObject(ofClass: UIImage.self) { (object, error) in
+                defer { group.leave() }
+                if let image = object as? UIImage {
+                    selectedImages.append(image)
+                }
+            }
+        }
+
+        group.notify(queue: .main) {
+            if !selectedImages.isEmpty {
+                self.uploadPhotosAndGenerateItinerary(selectedImages)
+            }
+        }
+    }
+}
+
+// MARK: - Response Models
+struct PhotoMetadata: Codable {
+    let id: String
+    let imageURL: String
+    let thumbnailURL: String?
+    let captureDate: String?
+    let location: PhotoCoordinate?
+    let hasExif: Bool
+}
+
+struct PhotoCoordinate: Codable {
+    let latitude: Double
+    let longitude: Double
+}
+
+struct BatchUploadResponse: Codable {
+    let photos: [PhotoMetadata]
+    let count: Int
+    let message: String?
+}
+
+struct AIGenerationResponse: Codable {
+    let vacation: Vacation
+    let message: String?
+}
+
 // MARK: - String Extension for Hex Colors
 extension String {
     func hexToUIColor() -> UIColor? {
         var hexSanitized = self.trimmingCharacters(in: .whitespacesAndNewlines)
         hexSanitized = hexSanitized.replacingOccurrences(of: "#", with: "")
-        
+
         var rgb: UInt64 = 0
-        
+
         guard Scanner(string: hexSanitized).scanHexInt64(&rgb) else {
             return nil
         }
-        
+
         let red = CGFloat((rgb & 0xFF0000) >> 16) / 255.0
         let green = CGFloat((rgb & 0x00FF00) >> 8) / 255.0
         let blue = CGFloat(rgb & 0x0000FF) / 255.0
-        
+
         return UIColor(red: red, green: green, blue: blue, alpha: 1.0)
     }
 }
