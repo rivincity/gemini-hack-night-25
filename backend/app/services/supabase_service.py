@@ -7,6 +7,14 @@ def get_supabase_client() -> Client:
     """Get or create Supabase client singleton"""
     url = current_app.config['SUPABASE_URL']
     key = current_app.config['SUPABASE_KEY']
+    
+    # Create client with options to avoid proxy parameter issue
+    options = {
+        'schema': 'public',
+        'auto_refresh_token': True,
+        'persist_session': True
+    }
+    
     return create_client(url, key)
 
 def verify_token(token: str):
