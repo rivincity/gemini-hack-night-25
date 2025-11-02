@@ -30,7 +30,7 @@ def get_vacations():
         vacations = []
 
         for vacation in vacations_result.data:
-            vacation_data = await build_vacation_response(vacation, supabase)
+            vacation_data = build_vacation_response(vacation, supabase)
             vacations.append(vacation_data)
 
         return jsonify({'vacations': vacations}), 200
@@ -40,7 +40,7 @@ def get_vacations():
         return jsonify({'error': str(e)}), 500
 
 
-async def build_vacation_response(vacation, supabase):
+def build_vacation_response(vacation, supabase):
     """Build complete vacation response with locations, activities, photos"""
 
     # Get owner info
@@ -126,7 +126,7 @@ def get_vacation(vacation_id):
             return jsonify({'error': 'Vacation not found'}), 404
 
         vacation = vacation_result.data[0]
-        vacation_data = await build_vacation_response(vacation, supabase)
+        vacation_data = build_vacation_response(vacation, supabase)
 
         return jsonify(vacation_data), 200
 
