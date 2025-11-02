@@ -9,7 +9,7 @@ def initialize_gemini():
     """Initialize Gemini API"""
     api_key = current_app.config['GEMINI_API_KEY']
     genai.configure(api_key=api_key)
-    return genai.GenerativeModel('gemini-1.5-flash')
+    return genai.GenerativeModel('gemini-2.5-flash')
 
 
 def generate_itinerary_from_photos(photos_data: List[Dict]) -> Dict:

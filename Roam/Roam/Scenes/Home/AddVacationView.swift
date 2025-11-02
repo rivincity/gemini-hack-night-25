@@ -17,6 +17,7 @@ struct AddVacationView: View {
     @State private var uploadProgress: Double = 0
     @State private var showError = false
     @State private var errorMessage = ""
+    var onVacationCreated: (() -> Void)?
     
     var body: some View {
         NavigationStack {
@@ -109,9 +110,10 @@ struct AddVacationView: View {
                 uploadProgress = 1.0
                 print("🎉 [Upload] Complete! Dismissing view...")
                 try? await Task.sleep(nanoseconds: 500_000_000)
-                
+
                 isUploading = false
                 dismiss()
+                onVacationCreated?()
                 
             } catch {
                 print("❌ [Upload] Error: \(error.localizedDescription)")
@@ -286,36 +288,111 @@ struct AddVacationView: View {
         
         let uploadResponse = try JSONDecoder().decode(UploadResponse.self, from: data)
         print("✅ [Backend] Successfully decoded: \(uploadResponse.count) photos uploaded")
-        
-        // Create a vacation object from the uploaded photos
-        let locations = uploadResponse.photos.compactMap { photo -> VacationLocation? in
-            guard let location = photo.location else { return nil }
-            
-            let coordinate = Coordinate(latitude: location.latitude, longitude: location.longitude)
-            let photoObj = Photo(
-                id: UUID(uuidString: photo.id) ?? UUID(),
-                imageURL: photo.imageURL,
-                captureDate: Date()
-            )
-            
-            return VacationLocation(
-                name: "Unknown Location", // TODO: Reverse geocode
-                coordinate: coordinate,
-                visitDate: Date(),
-                photos: [photoObj],
-                activities: []
-            )
-        }
-        
-        let vacation = Vacation(
-            title: vacationTitle,
-            startDate: Date(),
-            endDate: Date(),
-            locations: locations
-        )
-        
-        print("✅ [Backend] Created vacation with \(locations.count) locations")
+
+        // Now call the AI generation endpoint to create the vacation with locations
+        print("🤖 [Backend] Calling AI generation endpoint...")
+        let vacation = try await generateItinerary(photos: uploadResponse.photos)
+
+        print("✅ [Backend] Vacation created via AI with \(vacation.locations.count) locations")
         return vacation
+    }
+
+    private func generateItinerary(photos: [UploadedPhoto]) async throws -> Vacation {
+        print("🤖 [AI] Starting AI itinerary generation...")
+
+        guard let url = URL(string: APIConfig.Endpoints.generateItinerary) else {
+            print("❌ [AI] Invalid URL: \(APIConfig.Endpoints.generateItinerary)")
+            throw UploadError.invalidURL
+        }
+
+        print("🤖 [AI] URL: \(url.absoluteString)")
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        // Add auth token if available
+        if let token = AuthService.shared.authToken {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            print("🔐 [AI] Auth token added")
+        } else {
+            print("⚠️ [AI] No auth token available")
+        }
+
+        // Prepare request body
+        let requestPhotos = photos.map { photo in
+            var dict: [String: Any] = [
+                "imageURL": photo.imageURL,
+                "hasExif": photo.hasExif
+            ]
+
+            if let thumbnailURL = photo.thumbnailURL {
+                dict["thumbnailURL"] = thumbnailURL
+            }
+
+            if let captureDate = photo.captureDate {
+                dict["captureDate"] = captureDate
+            }
+
+            if let location = photo.location {
+                dict["coordinates"] = [
+                    "latitude": location.latitude,
+                    "longitude": location.longitude
+                ]
+            }
+
+            return dict
+        }
+
+        let requestBody: [String: Any] = [
+            "title": vacationTitle,
+            "photos": requestPhotos
+        ]
+
+        print("📦 [AI] Request body prepared with \(requestPhotos.count) photos")
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+
+        print("🚀 [AI] Sending request to AI endpoint...")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        print("📥 [AI] Received response")
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            print("❌ [AI] Invalid response type")
+            throw UploadError.invalidResponse
+        }
+
+        print("📊 [AI] Status code: \(httpResponse.statusCode)")
+
+        if let responseString = String(data: data, encoding: .utf8) {
+            print("📄 [AI] Response body: \(responseString)")
+        }
+
+        guard httpResponse.statusCode == 200 || httpResponse.statusCode == 201 else {
+            print("❌ [AI] Server error with status code: \(httpResponse.statusCode)")
+            throw UploadError.serverError(httpResponse.statusCode)
+        }
+
+        print("🎯 [AI] Decoding response...")
+
+        struct AIResponse: Codable {
+            let vacation: Vacation
+            let message: String
+        }
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        let aiResponse = try decoder.decode(AIResponse.self, from: data)
+
+        print("✅ [AI] Successfully generated itinerary!")
+        print("🗺️ [AI] Vacation: \(aiResponse.vacation.title)")
+        print("📍 [AI] Locations: \(aiResponse.vacation.locations.count)")
+        print("📝 [AI] AI Itinerary length: \(aiResponse.vacation.aiGeneratedItinerary?.count ?? 0) characters")
+
+        return aiResponse.vacation
     }
 }
 

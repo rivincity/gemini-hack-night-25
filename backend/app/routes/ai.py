@@ -64,6 +64,10 @@ def generate_itinerary():
         supabase = get_supabase_client()
         supabase.table('vacations').insert(vacation_data).execute()
 
+        # Fetch user info for owner field
+        user_response = supabase.table('users').select('id, name, color').eq('id', user_id).execute()
+        user_info = user_response.data[0] if user_response.data else None
+
         # Create locations
         for location in result['locations']:
             location_id = str(uuid.uuid4())
@@ -117,15 +121,25 @@ def generate_itinerary():
                         supabase.table('photos').insert(photo_data).execute()
 
         # Return complete vacation data
+        vacation_response = {
+            'id': vacation_id,
+            'title': title,
+            'startDate': start_date,
+            'endDate': end_date,
+            'aiGeneratedItinerary': result['itinerary'],
+            'locations': result['locations']
+        }
+
+        # Add owner info if available
+        if user_info:
+            vacation_response['owner'] = {
+                'id': user_info['id'],
+                'name': user_info['name'],
+                'color': user_info['color']
+            }
+
         return jsonify({
-            'vacation': {
-                'id': vacation_id,
-                'title': title,
-                'startDate': start_date,
-                'endDate': end_date,
-                'aiGeneratedItinerary': result['itinerary'],
-                'locations': result['locations']
-            },
+            'vacation': vacation_response,
             'message': 'Itinerary generated successfully'
         }), 201
 

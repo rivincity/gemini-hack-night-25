@@ -22,6 +22,8 @@ struct HomeView: View {
     )
     @State private var annotations: [VacationAnnotationItem] = []
     @State private var mapCameraPosition = MapCameraPosition.automatic
+    @State private var isLoading = false
+    @State private var errorMessage: String?
     
     var body: some View {
         NavigationStack {
@@ -77,7 +79,7 @@ struct HomeView: View {
             .toolbarBackground(Color.clear, for: .navigationBar)
             .toolbarBackground(.hidden, for: .navigationBar)
             .sheet(isPresented: $showAddVacation) {
-                AddVacationView()
+                AddVacationView(onVacationCreated: loadAnnotations)
             }
             .sheet(item: $selectedVacationItem) { item in
                 NavigationStack {
@@ -98,19 +100,76 @@ struct HomeView: View {
     }
     
     private func loadAnnotations() {
-        // Load vacation pins from mock data
-        annotations = User.mockUsers.flatMap { user in
-            user.vacations.flatMap { vacation in
-                vacation.locations.map { location in
-                    VacationAnnotationItem(
-                        id: location.id,
-                        title: location.name,
-                        coordinate: location.coordinate.clCoordinate,
-                        color: Color(hex: user.color) ?? .blue,
-                        location: location,
-                        vacation: vacation,
-                        user: user
-                    )
+        print("🗺️ [HomeView] Loading annotations from API...")
+        isLoading = true
+        errorMessage = nil
+
+        Task {
+            do {
+                print("🌐 [HomeView] Fetching vacations from backend...")
+                let vacations = try await APIService.shared.fetchVacations()
+                print("✅ [HomeView] Fetched \(vacations.count) vacations")
+
+                // Build annotations from real vacation data
+                var newAnnotations: [VacationAnnotationItem] = []
+
+                for vacation in vacations {
+                    print("📍 [HomeView] Processing vacation: \(vacation.title) with \(vacation.locations.count) locations")
+
+                    for location in vacation.locations {
+                        // Create a user object from the vacation owner
+                        let user = User(
+                            id: vacation.owner?.id ?? UUID(),
+                            name: vacation.owner?.name ?? "Unknown",
+                            color: vacation.owner?.color ?? "#FF6B6B",
+                            vacations: [vacation]
+                        )
+
+                        let annotation = VacationAnnotationItem(
+                            id: location.id,
+                            title: location.name,
+                            coordinate: location.coordinate.clCoordinate,
+                            color: Color(hex: vacation.owner?.color ?? "#FF6B6B") ?? .blue,
+                            location: location,
+                            vacation: vacation,
+                            user: user
+                        )
+
+                        newAnnotations.append(annotation)
+                    }
+                }
+
+                print("✅ [HomeView] Created \(newAnnotations.count) annotations")
+
+                await MainActor.run {
+                    annotations = newAnnotations
+                    isLoading = false
+                }
+
+            } catch {
+                print("❌ [HomeView] Error loading vacations: \(error)")
+                print("⚠️ [HomeView] Falling back to mock data")
+
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    isLoading = false
+
+                    // Fallback to mock data on error
+                    annotations = User.mockUsers.flatMap { user in
+                        user.vacations.flatMap { vacation in
+                            vacation.locations.map { location in
+                                VacationAnnotationItem(
+                                    id: location.id,
+                                    title: location.name,
+                                    coordinate: location.coordinate.clCoordinate,
+                                    color: Color(hex: user.color) ?? .blue,
+                                    location: location,
+                                    vacation: vacation,
+                                    user: user
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
