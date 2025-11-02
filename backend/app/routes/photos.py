@@ -3,7 +3,6 @@ from app.middleware.auth_middleware import require_auth, get_current_user
 from app.services.supabase_service import get_supabase_client, upload_file_to_storage, get_public_url
 from app.services.exif_service import extract_exif_data, create_thumbnail
 import uuid
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 bp = Blueprint('photos', __name__, url_prefix='/api/photos')
 
@@ -26,22 +25,16 @@ def upload_batch():
 
         print(f"Processing {len(files)} photos for user {user_id}")
 
-        # Process photos in parallel
+        # Process photos sequentially
         processed_photos = []
 
-        with ThreadPoolExecutor(max_workers=5) as executor:
-            futures = {
-                executor.submit(process_single_photo, file, user_id): file
-                for file in files
-            }
-
-            for future in as_completed(futures):
-                try:
-                    result = future.result()
-                    if result:
-                        processed_photos.append(result)
-                except Exception as e:
-                    print(f"Error processing photo: {str(e)}")
+        for file in files:
+            try:
+                result = process_single_photo(file, user_id)
+                if result:
+                    processed_photos.append(result)
+            except Exception as e:
+                print(f"Error processing photo: {str(e)}")
 
         if not processed_photos:
             return jsonify({'error': 'Failed to process any photos'}), 500
