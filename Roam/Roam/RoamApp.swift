@@ -13,14 +13,11 @@ struct RoamApp: App {
     
     var body: some Scene {
         WindowGroup {
-            // TODO: Change back to auth flow later
-            MainTabView()
-            
-//            if authService.isAuthenticated {
-//                MainTabView()
-//            } else {
-//                LoginView()
-//            }
+            if authService.isAuthenticated {
+                MainTabView()
+            } else {
+                LoginView()
+            }
         }
     }
 }
