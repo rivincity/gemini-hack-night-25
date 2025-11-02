@@ -82,13 +82,21 @@ struct Vacation: Identifiable, Codable {
     var locations: [VacationLocation]
     var photoAlbumURL: String?
     var aiGeneratedItinerary: String?
-    
-    init(id: UUID = UUID(), title: String, startDate: Date, endDate: Date, locations: [VacationLocation] = []) {
+    var owner: VacationOwner?
+
+    struct VacationOwner: Codable {
+        let id: UUID
+        let name: String
+        let color: String
+    }
+
+    init(id: UUID = UUID(), title: String, startDate: Date, endDate: Date, locations: [VacationLocation] = [], owner: VacationOwner? = nil) {
         self.id = id
         self.title = title
         self.startDate = startDate
         self.endDate = endDate
         self.locations = locations
+        self.owner = owner
     }
 }
 

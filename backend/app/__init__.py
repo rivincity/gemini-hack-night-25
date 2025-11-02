@@ -37,4 +37,38 @@ def create_app():
     def health():
         return {'status': 'ok', 'message': 'Roam API is running'}
 
+    # Initialize demo user on startup
+    with app.app_context():
+        initialize_demo_user()
+
     return app
+
+
+def initialize_demo_user():
+    """Ensure demo user exists in database"""
+    try:
+        from app.services.supabase_service import get_supabase_client
+
+        supabase = get_supabase_client()
+        demo_user_id = "demo-user-123"
+
+        # Check if demo user exists
+        result = supabase.table('users').select('*').eq('id', demo_user_id).execute()
+
+        if not result.data or len(result.data) == 0:
+            # Create demo user
+            user_data = {
+                'id': demo_user_id,
+                'name': 'Demo User',
+                'email': 'demo@roamapp.com',
+                'color': '#FF6B6B'
+            }
+
+            supabase.table('users').insert(user_data).execute()
+            print("✅ Demo user created successfully")
+        else:
+            print("✅ Demo user already exists")
+
+    except Exception as e:
+        print(f"⚠️ Warning: Could not initialize demo user: {str(e)}")
+        print("   The app will still work, but you may need to create the user manually.")

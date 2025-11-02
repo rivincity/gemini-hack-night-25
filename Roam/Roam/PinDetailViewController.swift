@@ -213,7 +213,7 @@ class PinDetailViewController: UIViewController {
         let stackView = UIStackView()
         stackView.translatesAutoresizingMaskIntoConstraints = false
         stackView.axis = .vertical
-        stackView.spacing = 12
+        stackView.spacing = 16
         container.addSubview(stackView)
         
         NSLayoutConstraint.activate([
@@ -226,6 +226,26 @@ class PinDetailViewController: UIViewController {
             stackView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
             stackView.bottomAnchor.constraint(equalTo: container.bottomAnchor)
         ])
+        
+        // Add full AI narrative if available
+        if let aiItinerary = vacation.aiGeneratedItinerary, !aiItinerary.isEmpty {
+            let narrativeCard = createNarrativeCard(text: aiItinerary)
+            stackView.addArrangedSubview(narrativeCard)
+            
+            // Add separator
+            let separator = UIView()
+            separator.translatesAutoresizingMaskIntoConstraints = false
+            separator.backgroundColor = .separator
+            separator.heightAnchor.constraint(equalToConstant: 1).isActive = true
+            stackView.addArrangedSubview(separator)
+        }
+        
+        // Activities subtitle
+        let activitiesLabel = UILabel()
+        activitiesLabel.text = "Activities"
+        activitiesLabel.font = .systemFont(ofSize: 18, weight: .semibold)
+        activitiesLabel.textColor = .secondaryLabel
+        stackView.addArrangedSubview(activitiesLabel)
         
         // Add activity cards
         for activity in location.activities {
@@ -242,6 +262,46 @@ class PinDetailViewController: UIViewController {
         }
         
         return container
+    }
+    
+    private func createNarrativeCard(text: String) -> UIView {
+        let card = UIView()
+        card.translatesAutoresizingMaskIntoConstraints = false
+        card.backgroundColor = .systemBlue.withAlphaComponent(0.1)
+        card.layer.cornerRadius = 12
+        card.layer.borderWidth = 1
+        card.layer.borderColor = UIColor.systemBlue.withAlphaComponent(0.3).cgColor
+        
+        let iconLabel = UILabel()
+        iconLabel.translatesAutoresizingMaskIntoConstraints = false
+        iconLabel.text = "✨"
+        iconLabel.font = .systemFont(ofSize: 32)
+        card.addSubview(iconLabel)
+        
+        let textView = UITextView()
+        textView.translatesAutoresizingMaskIntoConstraints = false
+        textView.text = text
+        textView.font = .systemFont(ofSize: 15)
+        textView.textColor = .label
+        textView.backgroundColor = .clear
+        textView.isEditable = false
+        textView.isScrollEnabled = false
+        textView.textContainerInset = .zero
+        textView.textContainer.lineFragmentPadding = 0
+        card.addSubview(textView)
+        
+        NSLayoutConstraint.activate([
+            iconLabel.topAnchor.constraint(equalTo: card.topAnchor, constant: 16),
+            iconLabel.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 16),
+            iconLabel.widthAnchor.constraint(equalToConstant: 40),
+            
+            textView.topAnchor.constraint(equalTo: card.topAnchor, constant: 16),
+            textView.leadingAnchor.constraint(equalTo: iconLabel.trailingAnchor, constant: 12),
+            textView.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -16),
+            textView.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -16)
+        ])
+        
+        return card
     }
     
     private func createActivityCard(activity: Activity) -> UIView {
