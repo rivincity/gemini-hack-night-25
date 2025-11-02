@@ -170,64 +170,13 @@ class APIService {
         return createdVacation
     }
     
-    func uploadPhotos(photos: [Data]) async throws -> [UploadedPhoto] {
-        guard let url = URL(string: APIConfig.Endpoints.uploadPhotosBatch) else {
-            throw APIError.invalidResponse
-        }
-        
-        let boundary = UUID().uuidString
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
-        
-        // Add auth token
-        if let token = AuthService.shared.authToken {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        } else {
-            throw APIError.unauthorized
-        }
-        
-        // Create multipart body
-        var body = Data()
-        
-        for (index, photoData) in photos.enumerated() {
-            body.append("--\(boundary)\r\n".data(using: .utf8)!)
-            body.append("Content-Disposition: form-data; name=\"photos\"; filename=\"photo\(index).jpg\"\r\n".data(using: .utf8)!)
-            body.append("Content-Type: image/jpeg\r\n\r\n".data(using: .utf8)!)
-            body.append(photoData)
-            body.append("\r\n".data(using: .utf8)!)
-        }
-        
-        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
-        request.httpBody = body
-        
-        // Upload
-        let (data, response) = try await session.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw APIError.invalidResponse
-        }
-        
-        guard httpResponse.statusCode == 200 else {
-            throw APIError.serverError(httpResponse.statusCode)
-        }
-        
-        // Parse response
-        struct UploadResponse: Codable {
-            let photos: [UploadedPhoto]
-            let count: Int
-        }
-        
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        let uploadResponse = try decoder.decode(UploadResponse.self, from: data)
-        
-        return uploadResponse.photos
+    func uploadPhotos(vacationId: UUID, photos: [Data]) async throws -> [Photo] {
+        // TODO: Implement photo upload with progress
+        return []
     }
     
     // MARK: - Friend Methods
     
-<<<<<<< HEAD
     func fetchFriends() async throws -> [Friend] {
         struct FriendsResponse: Codable {
             let friends: [FriendDTO]
@@ -242,26 +191,11 @@ class APIService {
             let vacationCount: Int
             let locationCount: Int
             let isVisible: Bool
-=======
-    func fetchFriends() async throws -> [FriendInfo] {
-        struct FriendsResponse: Codable {
-            let friends: [FriendData]
-            
-            struct FriendData: Codable {
-                let id: String
-                let name: String
-                let color: String
-                let vacationCount: Int
-                let locationCount: Int
-                let isVisible: Bool
-            }
->>>>>>> 4d85dd9f7b7ed3c273246054253abe6859cc4fcf
         }
         
         let response: FriendsResponse = try await request(
             endpoint: APIConfig.Endpoints.friends,
             method: .get,
-<<<<<<< HEAD
             requiresAuth: false  // No auth required for testing
         )
         
@@ -280,19 +214,6 @@ class APIService {
                 vacationCount: dto.vacationCount,
                 locationCount: dto.locationCount,
                 isVisible: dto.isVisible
-=======
-            requiresAuth: true
-        )
-        
-        return response.friends.map { friend in
-            FriendInfo(
-                id: UUID(uuidString: friend.id) ?? UUID(),
-                name: friend.name,
-                color: friend.color,
-                vacationCount: friend.vacationCount,
-                locationCount: friend.locationCount,
-                isVisible: friend.isVisible
->>>>>>> 4d85dd9f7b7ed3c273246054253abe6859cc4fcf
             )
         }
     }
@@ -386,115 +307,9 @@ class APIService {
     
     // MARK: - AI Methods
     
-    func generateItinerary(title: String, photos: [UploadedPhoto]) async throws -> Vacation {
-        struct GenerateRequest: Codable {
-            let title: String
-            let photos: [PhotoMetadata]
-            
-            struct PhotoMetadata: Codable {
-                let imageURL: String
-                let thumbnailURL: String?
-                let captureDate: String?
-                let coordinates: CoordinateData?
-                
-                struct CoordinateData: Codable {
-                    let latitude: Double
-                    let longitude: Double
-                }
-            }
-        }
-        
-        struct GenerateResponse: Codable {
-            let vacation: VacationResponse
-            
-            struct VacationResponse: Codable {
-                let id: String
-                let title: String
-                let startDate: String?
-                let endDate: String?
-                let aiGeneratedItinerary: String?
-                let locations: [LocationResponse]
-            }
-            
-            struct LocationResponse: Codable {
-                let id: String
-                let name: String
-                let coordinate: CoordinateResponse
-                let visitDate: String?
-                let activities: [ActivityResponse]
-                
-                struct CoordinateResponse: Codable {
-                    let latitude: Double
-                    let longitude: Double
-                }
-                
-                struct ActivityResponse: Codable {
-                    let id: String
-                    let title: String
-                    let description: String
-                    let time: String?
-                    let aiGenerated: Bool
-                }
-            }
-        }
-        
-        // Convert UploadedPhoto to request format
-        let photoMetadata = photos.map { photo in
-            GenerateRequest.PhotoMetadata(
-                imageURL: photo.imageURL,
-                thumbnailURL: photo.thumbnailURL,
-                captureDate: photo.captureDate,
-                coordinates: photo.location.map { loc in
-                    GenerateRequest.PhotoMetadata.CoordinateData(
-                        latitude: loc.latitude,
-                        longitude: loc.longitude
-                    )
-                }
-            )
-        }
-        
-        let requestBody = GenerateRequest(title: title, photos: photoMetadata)
-        
-        let response: GenerateResponse = try await request(
-            endpoint: APIConfig.Endpoints.generateItinerary,
-            method: .post,
-            body: requestBody,
-            requiresAuth: true
-        )
-        
-        // Convert response to Vacation model
-        let dateFormatter = ISO8601DateFormatter()
-        
-        let locations = response.vacation.locations.map { loc in
-            let activities = loc.activities.map { act in
-                Activity(
-                    id: UUID(uuidString: act.id) ?? UUID(),
-                    title: act.title,
-                    description: act.description,
-                    time: act.time != nil ? (dateFormatter.date(from: act.time!) ?? Date()) : Date(),
-                    aiGenerated: act.aiGenerated
-                )
-            }
-            
-            return VacationLocation(
-                id: UUID(uuidString: loc.id) ?? UUID(),
-                name: loc.name,
-                coordinate: Coordinate(latitude: loc.coordinate.latitude, longitude: loc.coordinate.longitude),
-                visitDate: loc.visitDate != nil ? (dateFormatter.date(from: loc.visitDate!) ?? Date()) : Date(),
-                photos: [],
-                activities: activities
-            )
-        }
-        
-        let vacation = Vacation(
-            id: UUID(uuidString: response.vacation.id) ?? UUID(),
-            title: response.vacation.title,
-            startDate: response.vacation.startDate != nil ? (dateFormatter.date(from: response.vacation.startDate!) ?? Date()) : Date(),
-            endDate: response.vacation.endDate != nil ? (dateFormatter.date(from: response.vacation.endDate!) ?? Date()) : Date(),
-            locations: locations
-        )
-        
-        return vacation
+    func generateItinerary(photos: [Photo]) async throws -> [Activity] {
+        // TODO: Implement Gemini AI integration
+        return []
     }
     
     func analyzePhoto(photo: Data) async throws -> PhotoAnalysis {
@@ -555,30 +370,5 @@ struct PhotoAnalysis: Codable {
     let timestamp: Date?
     let detectedActivity: String?
     let confidence: Double
-}
-
-// MARK: - Uploaded Photo Response
-struct UploadedPhoto: Codable {
-    let id: String
-    let imageURL: String
-    let thumbnailURL: String?
-    let captureDate: String?
-    let location: PhotoCoordinate?
-    let hasExif: Bool
-    
-    struct PhotoCoordinate: Codable {
-        let latitude: Double
-        let longitude: Double
-    }
-}
-
-// MARK: - Friend Info Response
-struct FriendInfo: Codable, Identifiable {
-    let id: UUID
-    let name: String
-    let color: String
-    let vacationCount: Int
-    let locationCount: Int
-    let isVisible: Bool
 }
 
