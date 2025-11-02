@@ -7,6 +7,7 @@
 
 import SwiftUI
 import MapKit
+import CoreLocation
 
 struct HomeView: View {
     @State private var showAddVacation = false
@@ -72,6 +73,9 @@ struct HomeView: View {
             }
             .navigationTitle("Roam")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(Color.clear, for: .navigationBar)
+            .toolbarBackground(.hidden, for: .navigationBar)
             .sheet(isPresented: $showAddVacation) {
                 AddVacationView()
             }
