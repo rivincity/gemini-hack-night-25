@@ -105,12 +105,12 @@ struct VacationLocation: Identifiable, Codable {
     let id: UUID
     var name: String
     var coordinate: Coordinate
-    var visitDate: Date
+    var visitDate: Date?  // Optional - may not always have exact date
     var photos: [Photo]
     var activities: [Activity]
     var articles: [Article]
     
-    init(id: UUID = UUID(), name: String, coordinate: Coordinate, visitDate: Date, photos: [Photo] = [], activities: [Activity] = []) {
+    init(id: UUID = UUID(), name: String, coordinate: Coordinate, visitDate: Date? = nil, photos: [Photo] = [], activities: [Activity] = []) {
         self.id = id
         self.name = name
         self.coordinate = coordinate
@@ -153,10 +153,10 @@ struct Activity: Identifiable, Codable {
     let id: UUID
     var title: String
     var description: String
-    var time: Date
+    var time: Date?  // Optional - AI-generated activities may not have exact times
     var aiGenerated: Bool
     
-    init(id: UUID = UUID(), title: String, description: String, time: Date, aiGenerated: Bool = false) {
+    init(id: UUID = UUID(), title: String, description: String, time: Date? = nil, aiGenerated: Bool = false) {
         self.id = id
         self.title = title
         self.description = description

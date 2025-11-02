@@ -288,6 +288,7 @@ struct AddVacationView: View {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 120 // 2 minutes for Gemini Vision processing
 
         // Add auth token if available
         if let token = AuthService.shared.authToken {

@@ -312,6 +312,7 @@ class GlobeViewController: UIViewController {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 120 // 2 minutes for Gemini Vision processing
 
         // Create request body
         let requestBody: [String: Any] = [
@@ -333,7 +334,13 @@ class GlobeViewController: UIViewController {
 
         request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
 
-        let (responseData, response) = try await URLSession.shared.data(for: request)
+        // Use custom URLSession with longer timeout
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 120
+        config.timeoutIntervalForResource = 180
+        let session = URLSession(configuration: config)
+        
+        let (responseData, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             print("❌ ERROR: Invalid response from AI endpoint")

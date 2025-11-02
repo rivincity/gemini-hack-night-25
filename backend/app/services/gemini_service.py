@@ -247,7 +247,7 @@ def create_enhanced_itinerary_prompt(location_summaries: List[Dict], photos: Lis
         start_date = "Unknown"
         end_date = "Unknown"
 
-    prompt = f"""You are a travel expert creating a personalized vacation itinerary. Based on actual photo analysis and location data, write a detailed, engaging narrative of this vacation.
+    prompt = f"""You are a travel expert creating a personalized vacation itinerary. Based on actual photo analysis and location data, write a detailed, engaging narrative of this vacation AS A DAY-BY-DAY ITINERARY.
 
 Vacation Details:
 - Start Date: {start_date}
@@ -257,15 +257,26 @@ Vacation Details:
 Locations & Activities (from AI photo analysis):
 {locations_detail}
 
-Please write:
-1. A natural, flowing narrative describing this vacation (3-4 paragraphs)
-2. Reference the SPECIFIC activities identified from the photos
-3. Describe the experiences chronologically, day by day if possible
-4. Be enthusiastic and descriptive, painting a vivid picture of their adventure
-5. Mention landmarks, activities, and the atmosphere they experienced
-6. Do not use markdown formatting - just plain text paragraphs
+Please write a STRUCTURED ITINERARY in this format:
 
-Make it personal and engaging, as if you're helping them relive their memories!"""
+Day 1 - [Date from {start_date}] - [Location Name]
+Morning: [What they did in the morning]
+Afternoon: [What they did in the afternoon]  
+Evening: [What they did in the evening]
+
+Day 2 - [Next Date] - [Next Location or same]
+[Continue with specific activities and times]
+
+IMPORTANT:
+1. Structure it like a REAL travel itinerary with Day 1, Day 2, Day 3, etc.
+2. Use the ACTUAL dates from the photo timestamps
+3. Reference the SPECIFIC activities identified from photo analysis
+4. Include approximate times of day (morning, afternoon, evening) based on the activities
+5. Be enthusiastic and descriptive, painting a vivid picture
+6. Use plain text formatting - NO markdown, just clear structure
+7. If multiple locations on same day, mention the transition
+
+Make it read like a professional travel itinerary that someone would get from a travel agent!"""
 
     return prompt
 
@@ -278,6 +289,7 @@ def create_itinerary_prompt(location_summaries: List[Dict], photos: List[Dict]) 
 def parse_locations_with_activities(location_summaries: List[Dict], itinerary_text: str) -> List[Dict]:
     """Convert location summaries with visual analysis into structured data matching iOS model"""
     import uuid
+    from datetime import datetime, timedelta
 
     locations = []
 
@@ -288,17 +300,32 @@ def parse_locations_with_activities(location_summaries: List[Dict], itinerary_te
         # Use activities from visual analysis if available
         activities = []
         if loc_summary.get('activities'):
-            for activity_data in loc_summary['activities']:
+            # Generate reasonable times for activities throughout the day
+            for activity_index, activity_data in enumerate(loc_summary['activities']):
+                # If we have photo dates, use them as base times
+                if visit_date:
+                    try:
+                        # Parse visit date
+                        base_date = datetime.fromisoformat(visit_date.replace('Z', '+00:00'))
+                        # Spread activities throughout the day (9 AM, 12 PM, 3 PM, etc.)
+                        hour_offset = 9 + (activity_index * 3)  # Start at 9 AM, then 12 PM, 3 PM, etc.
+                        activity_time = base_date.replace(hour=hour_offset % 24, minute=0, second=0)
+                        activity_time_str = activity_time.isoformat()
+                    except:
+                        activity_time_str = visit_date  # Fallback to visit date
+                else:
+                    activity_time_str = None
+                
                 activities.append({
                     'id': str(uuid.uuid4()),
                     'title': activity_data.get('title', 'Activity'),
                     'description': activity_data.get('description', ''),
-                    'time': None,
+                    'time': activity_time_str,
                     'aiGenerated': True
                 })
         else:
             # Fallback to basic activity
-            activities = generate_activities_for_location(loc_summary['name'], itinerary_text)
+            activities = generate_activities_for_location(loc_summary['name'], itinerary_text, visit_date)
 
         # Generate proper UUID for location
         location_uuid = str(uuid.uuid4())
@@ -323,7 +350,7 @@ def parse_locations_from_summary(location_summaries: List[Dict], itinerary_text:
     return parse_locations_with_activities(location_summaries, itinerary_text)
 
 
-def generate_activities_for_location(location_name: str, itinerary_text: str) -> List[Dict]:
+def generate_activities_for_location(location_name: str, itinerary_text: str, visit_date: str = None) -> List[Dict]:
     """Generate activities based on location and itinerary text"""
     import uuid
 
@@ -335,7 +362,7 @@ def generate_activities_for_location(location_name: str, itinerary_text: str) ->
         'id': str(uuid.uuid4()),  # Changed to proper UUID
         'title': f"Explored {location_name}",
         'description': f"Visited and captured memories in {location_name}",
-        'time': None,
+        'time': visit_date,  # Use visit date if available
         'aiGenerated': True
     })
 

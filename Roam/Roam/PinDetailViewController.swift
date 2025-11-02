@@ -333,10 +333,14 @@ class PinDetailViewController: UIViewController {
         
         let timeLabel = UILabel()
         timeLabel.translatesAutoresizingMaskIntoConstraints = false
-        let formatter = DateFormatter()
-        formatter.dateStyle = .short
-        formatter.timeStyle = .short
-        timeLabel.text = formatter.string(from: activity.time)
+        if let time = activity.time {
+            let formatter = DateFormatter()
+            formatter.dateStyle = .short
+            formatter.timeStyle = .short
+            timeLabel.text = formatter.string(from: time)
+        } else {
+            timeLabel.text = "Time not specified"
+        }
         timeLabel.font = .systemFont(ofSize: 12)
         timeLabel.textColor = .tertiaryLabel
         card.addSubview(timeLabel)
