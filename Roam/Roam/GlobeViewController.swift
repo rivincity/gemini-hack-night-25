@@ -182,9 +182,33 @@ class GlobeViewController: UIViewController {
                 }
 
             } catch {
+                print("❌ FATAL ERROR: Vacation creation failed")
+                print("🔍 Error type: \(type(of: error))")
+                print("📝 Error description: \(error.localizedDescription)")
+                if let apiError = error as? APIError {
+                    print("🚨 API Error details: \(apiError)")
+                }
+
                 await MainActor.run {
                     loadingAlert.dismiss(animated: true) {
-                        self.showErrorAlert("Failed to create vacation: \(error.localizedDescription)")
+                        let errorMessage: String
+                        if let apiError = error as? APIError {
+                            switch apiError {
+                            case .unauthorized:
+                                errorMessage = "You are not logged in. Please log in and try again."
+                            case .networkError:
+                                errorMessage = "Network connection error. Check your internet connection."
+                            case .serverError(let code):
+                                errorMessage = "Server error (code \(code)). Please try again later."
+                            case .decodingError:
+                                errorMessage = "Failed to process server response. Please check backend logs."
+                            default:
+                                errorMessage = "Failed to create vacation: \(error.localizedDescription)"
+                            }
+                        } else {
+                            errorMessage = "Failed to create vacation: \(error.localizedDescription)"
+                        }
+                        self.showErrorAlert(errorMessage)
                     }
                 }
             }
@@ -196,13 +220,20 @@ class GlobeViewController: UIViewController {
             throw APIError.invalidResponse
         }
 
+        // CRITICAL: Check authentication first
+        guard let token = AuthService.shared.authToken else {
+            print("❌ ERROR: No auth token available")
+            throw APIError.unauthorized
+        }
+
+        print("✅ DEBUG: Starting photo upload")
+        print("📸 DEBUG: Uploading \(imageData.count) photos")
+        print("🔗 DEBUG: Endpoint: \(APIConfig.Endpoints.uploadPhotosBatch)")
+        print("🔐 DEBUG: Auth token exists: true")
+
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-
-        // Add auth token
-        if let token = AuthService.shared.authToken {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        }
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 
         // Create multipart/form-data body
         let boundary = UUID().uuidString
@@ -223,12 +254,29 @@ class GlobeViewController: UIViewController {
 
         let (responseData, response) = try await URLSession.shared.data(for: request)
 
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw APIError.serverError((response as? HTTPURLResponse)?.statusCode ?? 500)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            print("❌ ERROR: Invalid response from server")
+            throw APIError.invalidResponse
         }
 
-        let uploadResponse = try JSONDecoder().decode(BatchUploadResponse.self, from: responseData)
-        return uploadResponse.photos
+        print("📡 DEBUG: Upload response status: \(httpResponse.statusCode)")
+
+        if httpResponse.statusCode != 200 {
+            let errorBody = String(data: responseData, encoding: .utf8) ?? "No error body"
+            print("❌ ERROR: Upload failed with status \(httpResponse.statusCode)")
+            print("📄 ERROR Response body: \(errorBody)")
+            throw APIError.serverError(httpResponse.statusCode)
+        }
+
+        do {
+            let uploadResponse = try JSONDecoder().decode(BatchUploadResponse.self, from: responseData)
+            print("✅ DEBUG: Successfully uploaded \(uploadResponse.count) photos")
+            return uploadResponse.photos
+        } catch {
+            print("❌ ERROR: Failed to decode upload response: \(error)")
+            print("📄 Response body: \(String(data: responseData, encoding: .utf8) ?? "nil")")
+            throw APIError.decodingError
+        }
     }
 
     private func generateItineraryFromPhotos(_ photos: [PhotoMetadata]) async throws -> Vacation {
@@ -236,13 +284,20 @@ class GlobeViewController: UIViewController {
             throw APIError.invalidResponse
         }
 
+        // CRITICAL: Check authentication first
+        guard let token = AuthService.shared.authToken else {
+            print("❌ ERROR: No auth token available for AI generation")
+            throw APIError.unauthorized
+        }
+
+        print("🤖 DEBUG: Starting AI itinerary generation")
+        print("📸 DEBUG: Processing \(photos.count) photos")
+        print("🔗 DEBUG: Endpoint: \(APIConfig.Endpoints.generateItinerary)")
+
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        if let token = AuthService.shared.authToken {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        }
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 
         // Create request body
         let requestBody: [String: Any] = [
@@ -266,15 +321,32 @@ class GlobeViewController: UIViewController {
 
         let (responseData, response) = try await URLSession.shared.data(for: request)
 
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 201 else {
-            throw APIError.serverError((response as? HTTPURLResponse)?.statusCode ?? 500)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            print("❌ ERROR: Invalid response from AI endpoint")
+            throw APIError.invalidResponse
+        }
+
+        print("📡 DEBUG: AI generation response status: \(httpResponse.statusCode)")
+
+        if httpResponse.statusCode != 201 && httpResponse.statusCode != 200 {
+            let errorBody = String(data: responseData, encoding: .utf8) ?? "No error body"
+            print("❌ ERROR: AI generation failed with status \(httpResponse.statusCode)")
+            print("📄 ERROR Response body: \(errorBody)")
+            throw APIError.serverError(httpResponse.statusCode)
         }
 
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        let aiResponse = try decoder.decode(AIGenerationResponse.self, from: responseData)
 
-        return aiResponse.vacation
+        do {
+            let aiResponse = try decoder.decode(AIGenerationResponse.self, from: responseData)
+            print("✅ DEBUG: Successfully generated vacation: \(aiResponse.vacation.title)")
+            return aiResponse.vacation
+        } catch {
+            print("❌ ERROR: Failed to decode AI response: \(error)")
+            print("📄 Response body: \(String(data: responseData, encoding: .utf8) ?? "nil")")
+            throw APIError.decodingError
+        }
     }
 
     private func showSuccessAlert(_ vacation: Vacation) {

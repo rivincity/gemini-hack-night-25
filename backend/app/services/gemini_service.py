@@ -134,6 +134,7 @@ Keep the tone warm, personal, and engaging."""
 
 def parse_locations_from_summary(location_summaries: List[Dict], itinerary_text: str) -> List[Dict]:
     """Convert location summaries into structured data matching iOS model"""
+    import uuid
 
     locations = []
 
@@ -144,10 +145,13 @@ def parse_locations_from_summary(location_summaries: List[Dict], itinerary_text:
         # Create basic activities from location
         activities = generate_activities_for_location(loc_summary['name'], itinerary_text)
 
+        # Generate proper UUID for location
+        location_uuid = str(uuid.uuid4())
+
         location = {
-            'id': f"loc_{i}",
+            'id': location_uuid,  # Changed to proper UUID
             'name': loc_summary['name'],
-            'coordinate': loc_summary['coordinates'],
+            'coordinate': loc_summary['coordinates'],  # iOS expects 'coordinate' (singular)
             'visitDate': visit_date,
             'photos': [],
             'activities': activities,
@@ -161,13 +165,14 @@ def parse_locations_from_summary(location_summaries: List[Dict], itinerary_text:
 
 def generate_activities_for_location(location_name: str, itinerary_text: str) -> List[Dict]:
     """Generate activities based on location and itinerary text"""
+    import uuid
 
     # Simple activity extraction from location name
     activities = []
 
-    # AI-generated activity based on location
+    # AI-generated activity based on location with proper UUID
     activities.append({
-        'id': f"activity_ai_0",
+        'id': str(uuid.uuid4()),  # Changed to proper UUID
         'title': f"Explored {location_name}",
         'description': f"Visited and captured memories in {location_name}",
         'time': None,
