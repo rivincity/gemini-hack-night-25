@@ -101,6 +101,19 @@ struct LoginView: View {
     }
     
     private func handleLogin() {
+        // Bypass auth for demo credentials
+        if email.lowercased() == "hello" && password.lowercased() == "hello" {
+            // Create mock user and bypass auth
+            authService.currentUser = User(
+                name: "Demo User",
+                color: "#FF6B6B",
+                vacations: User.mockUsers.first?.vacations ?? []
+            )
+            authService.isAuthenticated = true
+            authService.authToken = "demo_token"
+            return
+        }
+        
         isLoading = true
         
         Task {
