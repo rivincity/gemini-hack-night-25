@@ -10,6 +10,7 @@ import MapKit
 
 struct HomeView: View {
     @State private var showAddVacation = false
+    @State private var selectedVacationItem: VacationSheetItem?
     @State private var cameraPosition: MapCameraPosition = .camera(
         MapCamera(
             centerCoordinate: CLLocationCoordinate2D(latitude: 20, longitude: 0),
@@ -29,7 +30,7 @@ struct HomeView: View {
                     ForEach(annotations) { annotation in
                         Annotation(annotation.title, coordinate: annotation.coordinate) {
                             Button(action: {
-                                // TODO: Show detail view
+                                selectedVacationItem = VacationSheetItem(vacation: annotation.vacation, user: annotation.user)
                             }) {
                                 ZStack {
                                     Circle()
@@ -74,6 +75,18 @@ struct HomeView: View {
             .sheet(isPresented: $showAddVacation) {
                 AddVacationView()
             }
+            .sheet(item: $selectedVacationItem) { item in
+                NavigationStack {
+                    VacationDetailView(vacation: item.vacation, user: item.user)
+                        .toolbar {
+                            ToolbarItem(placement: .navigationBarTrailing) {
+                                Button("Done") {
+                                    selectedVacationItem = nil
+                                }
+                            }
+                        }
+                }
+            }
             .onAppear {
                 loadAnnotations()
             }
@@ -109,6 +122,19 @@ struct VacationAnnotationItem: Identifiable {
     let location: VacationLocation
     let vacation: Vacation
     let user: User
+}
+
+// MARK: - Vacation Sheet Item (for sheet presentation)
+struct VacationSheetItem: Identifiable {
+    let id: UUID
+    let vacation: Vacation
+    let user: User
+    
+    init(vacation: Vacation, user: User) {
+        self.id = vacation.id
+        self.vacation = vacation
+        self.user = user
+    }
 }
 
 #Preview {
