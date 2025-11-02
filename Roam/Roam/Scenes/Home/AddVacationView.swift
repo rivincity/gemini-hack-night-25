@@ -388,7 +388,19 @@ private struct UploadResponse: Codable {
     let photos: [UploadedPhoto]
 }
 
-// Note: UploadedPhoto is defined in APIService.swift and reused here
+private struct UploadedPhoto: Codable {
+    let id: String
+    let imageURL: String
+    let thumbnailURL: String?
+    let captureDate: String?
+    let location: PhotoLocation?
+    let hasExif: Bool
+}
+
+private struct PhotoLocation: Codable {
+    let latitude: Double
+    let longitude: Double
+}
 
 // MARK: - Upload Errors
 enum UploadError: LocalizedError {

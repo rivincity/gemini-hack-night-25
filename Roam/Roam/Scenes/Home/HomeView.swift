@@ -106,7 +106,7 @@ struct HomeView: View {
             .toolbarBackground(Color.clear, for: .navigationBar)
             .toolbarBackground(.hidden, for: .navigationBar)
             .sheet(isPresented: $showAddVacation) {
-                AddVacationView()
+                AddVacationView(onVacationCreated: loadAnnotations)
             }
             .sheet(item: $selectedVacationItem) { item in
                 NavigationStack {
