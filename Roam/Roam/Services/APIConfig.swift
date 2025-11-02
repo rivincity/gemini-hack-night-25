@@ -9,7 +9,7 @@ import Foundation
 
 struct APIConfig {
     // MARK: - Base URLs
-    static let baseURL = "http://localhost:5000" // Local Flask backend
+    static let baseURL = "https://850a286ace35.ngrok-free.app" // ngrok tunnel to Flask backend
     static let apiVersion = "/api"
     
     // MARK: - Endpoints

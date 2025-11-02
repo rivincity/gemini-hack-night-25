@@ -36,12 +36,13 @@ if __name__ == '__main__':
     app = create_app()
 
     # Get configuration
-    host = os.getenv('HOST', '0.0.0.0')
-    port = int(os.getenv('PORT', 5000))
+    host = "0.0.0.0"  # Flask listens on all interfaces
+    port = 5000
     debug = os.getenv('FLASK_DEBUG', 'True') == 'True'
 
     print(f"\n🚀 Starting Roam API server on {host}:{port}")
     print(f"   Debug mode: {debug}")
-    print(f"   Health check: http://{host}:{port}/api/health\n")
+    print(f"   Local: http://localhost:{port}/api/health")
+    print(f"   ngrok: https://850a286ace35.ngrok-free.app/api/health\n")
 
     app.run(host=host, port=port, debug=debug)
