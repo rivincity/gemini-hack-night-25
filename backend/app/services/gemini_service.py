@@ -4,6 +4,9 @@ from typing import List, Dict
 import json
 from datetime import datetime
 from app.services.geocoding_service import get_location_name, cluster_locations_by_proximity
+import requests
+from PIL import Image
+import io
 
 def initialize_gemini():
     """Initialize Gemini API"""
@@ -12,9 +15,119 @@ def initialize_gemini():
     return genai.GenerativeModel('gemini-2.5-flash')
 
 
+def download_image(url: str) -> Image.Image:
+    """Download image from URL and return PIL Image"""
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        return Image.open(io.BytesIO(response.content))
+    except Exception as e:
+        print(f"Error downloading image from {url}: {str(e)}")
+        return None
+
+
+def analyze_photos_for_location(photos: List[Dict], location_name: str) -> Dict:
+    """
+    Use Gemini Vision to analyze photos and extract activities
+    
+    Args:
+        photos: List of photo dicts with imageURL
+        location_name: Name of the location
+        
+    Returns:
+        Dict with activities and summary
+    """
+    try:
+        model = initialize_gemini()
+        
+        # Download up to 5 photos for analysis (to stay within API limits)
+        images = []
+        for photo in photos[:5]:
+            image_url = photo.get('imageURL') or photo.get('image_url')
+            if image_url:
+                img = download_image(image_url)
+                if img:
+                    images.append(img)
+        
+        if not images:
+            return {
+                'activities': [],
+                'summary': None
+            }
+        
+        # Create a comprehensive prompt for Gemini
+        prompt = f"""You are analyzing vacation photos taken at {location_name}. 
+
+Based on these {len(images)} photos, identify specific activities and experiences the traveler had.
+
+For each distinct activity you can identify, provide:
+1. A specific activity title (e.g., "Sunset Beach Walk", "Local Market Shopping", "Mountain Hiking")
+2. A detailed description of what they did (2-3 sentences)
+
+Return your response in this exact JSON format:
+{{
+  "activities": [
+    {{
+      "title": "Activity name",
+      "description": "Detailed description of what they did"
+    }}
+  ],
+  "overall_summary": "A brief summary of their experience at this location (1-2 sentences)"
+}}
+
+Focus on being specific based on what you see in the images. Look for:
+- Landmarks and attractions visited
+- Activities (dining, hiking, shopping, sightseeing)
+- Time of day (sunrise, sunset, night)
+- Type of experience (cultural, adventure, relaxation)
+
+Return ONLY valid JSON, no other text."""
+
+        # Send prompt with images to Gemini
+        content = [prompt] + images
+        response = model.generate_content(content)
+        
+        # Parse JSON response
+        try:
+            # Extract JSON from response (sometimes Gemini adds markdown code blocks)
+            response_text = response.text.strip()
+            if response_text.startswith('```json'):
+                response_text = response_text[7:]
+            if response_text.startswith('```'):
+                response_text = response_text[3:]
+            if response_text.endswith('```'):
+                response_text = response_text[:-3]
+            response_text = response_text.strip()
+            
+            result = json.loads(response_text)
+            print(f"✅ Gemini Vision analysis for {location_name}: {len(result.get('activities', []))} activities found")
+            return result
+        except json.JSONDecodeError as e:
+            print(f"⚠️ Failed to parse JSON from Gemini response: {e}")
+            print(f"Response was: {response.text[:200]}")
+            # Fallback to basic activity
+            return {
+                'activities': [{
+                    'title': f"Explored {location_name}",
+                    'description': f"Visited and captured memories at {location_name}"
+                }],
+                'overall_summary': response.text[:200] if response.text else None
+            }
+            
+    except Exception as e:
+        print(f"Error analyzing photos with Gemini Vision: {str(e)}")
+        return {
+            'activities': [{
+                'title': f"Explored {location_name}",
+                'description': f"Visited and captured memories at {location_name}"
+            }],
+            'summary': None
+        }
+
+
 def generate_itinerary_from_photos(photos_data: List[Dict]) -> Dict:
     """
-    Generate AI itinerary from photos with EXIF data
+    Generate AI itinerary from photos with EXIF data and visual analysis
 
     Args:
         photos_data: List of dicts with keys: image_url, coordinates, capture_date
@@ -50,7 +163,7 @@ def generate_itinerary_from_photos(photos_data: List[Dict]) -> Dict:
 
         clusters = cluster_locations_by_proximity(coordinates_list, threshold_km=10.0)
 
-        # Build location summaries
+        # Build location summaries with visual analysis
         location_summaries = []
 
         for i, cluster in enumerate(clusters):
@@ -59,23 +172,32 @@ def generate_itinerary_from_photos(photos_data: List[Dict]) -> Dict:
 
             dates = [c['capture_date'] for c in cluster['coordinates'] if c.get('capture_date')]
             photo_count = len(cluster['coordinates'])
+            
+            # Get photos for this cluster
+            cluster_photos = [c['photo'] for c in cluster['coordinates']]
+            
+            # Analyze photos with Gemini Vision to extract activities
+            print(f"🔍 Analyzing {len(cluster_photos)} photos at {location_name}...")
+            visual_analysis = analyze_photos_for_location(cluster_photos, location_name)
 
             location_summaries.append({
                 'name': location_name,
                 'coordinates': center,
                 'photo_count': photo_count,
-                'dates': dates
+                'dates': dates,
+                'activities': visual_analysis.get('activities', []),
+                'visual_summary': visual_analysis.get('overall_summary')
             })
 
-        # Create prompt for Gemini
-        prompt = create_itinerary_prompt(location_summaries, photos_with_location)
+        # Create enhanced prompt for Gemini with visual insights
+        prompt = create_enhanced_itinerary_prompt(location_summaries, photos_with_location)
 
         # Generate itinerary
         response = model.generate_content(prompt)
         itinerary_text = response.text
 
-        # Parse structured data
-        structured_locations = parse_locations_from_summary(location_summaries, itinerary_text)
+        # Parse structured data with activities from visual analysis
+        structured_locations = parse_locations_with_activities(location_summaries, itinerary_text)
 
         return {
             'itinerary': itinerary_text,
@@ -85,6 +207,8 @@ def generate_itinerary_from_photos(photos_data: List[Dict]) -> Dict:
 
     except Exception as e:
         print(f"Error generating itinerary: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return {
             'error': str(e),
             'itinerary': None,
@@ -92,13 +216,26 @@ def generate_itinerary_from_photos(photos_data: List[Dict]) -> Dict:
         }
 
 
-def create_itinerary_prompt(location_summaries: List[Dict], photos: List[Dict]) -> str:
-    """Create prompt for Gemini to generate itinerary"""
+def create_enhanced_itinerary_prompt(location_summaries: List[Dict], photos: List[Dict]) -> str:
+    """Create enhanced prompt for Gemini with visual analysis data"""
 
-    locations_text = "\n".join([
-        f"- {loc['name']}: {loc['photo_count']} photos taken"
-        for loc in location_summaries
-    ])
+    # Build detailed location descriptions with activities from visual analysis
+    locations_text = []
+    for loc in location_summaries:
+        loc_text = f"\n📍 {loc['name']} ({loc['photo_count']} photos)"
+        
+        # Add activities found from visual analysis
+        if loc.get('activities'):
+            loc_text += "\n   Activities identified:"
+            for activity in loc['activities']:
+                loc_text += f"\n   - {activity['title']}: {activity['description']}"
+        
+        if loc.get('visual_summary'):
+            loc_text += f"\n   Visual summary: {loc['visual_summary']}"
+            
+        locations_text.append(loc_text)
+
+    locations_detail = "\n".join(locations_text)
 
     # Get date range
     dates = [p.get('capture_date') for p in photos if p.get('capture_date')]
@@ -110,30 +247,36 @@ def create_itinerary_prompt(location_summaries: List[Dict], photos: List[Dict]) 
         start_date = "Unknown"
         end_date = "Unknown"
 
-    prompt = f"""You are a travel expert analyzing vacation photos. Based on the following information, create a detailed, engaging itinerary summary of this vacation.
+    prompt = f"""You are a travel expert creating a personalized vacation itinerary. Based on actual photo analysis and location data, write a detailed, engaging narrative of this vacation.
 
 Vacation Details:
 - Start Date: {start_date}
 - End Date: {end_date}
 - Total Photos: {len(photos)}
 
-Locations Visited:
-{locations_text}
+Locations & Activities (from AI photo analysis):
+{locations_detail}
 
 Please write:
-1. A natural, flowing narrative describing this vacation (2-3 paragraphs)
-2. Highlight the main locations and what the traveler likely experienced
-3. Mention the journey chronologically if possible
-4. Be enthusiastic and descriptive, as if you're helping them remember their adventure
-5. Do not use markdown formatting - just plain text paragraphs
+1. A natural, flowing narrative describing this vacation (3-4 paragraphs)
+2. Reference the SPECIFIC activities identified from the photos
+3. Describe the experiences chronologically, day by day if possible
+4. Be enthusiastic and descriptive, painting a vivid picture of their adventure
+5. Mention landmarks, activities, and the atmosphere they experienced
+6. Do not use markdown formatting - just plain text paragraphs
 
-Keep the tone warm, personal, and engaging."""
+Make it personal and engaging, as if you're helping them relive their memories!"""
 
     return prompt
 
 
-def parse_locations_from_summary(location_summaries: List[Dict], itinerary_text: str) -> List[Dict]:
-    """Convert location summaries into structured data matching iOS model"""
+def create_itinerary_prompt(location_summaries: List[Dict], photos: List[Dict]) -> str:
+    """Create prompt for Gemini to generate itinerary (fallback)"""
+    return create_enhanced_itinerary_prompt(location_summaries, photos)
+
+
+def parse_locations_with_activities(location_summaries: List[Dict], itinerary_text: str) -> List[Dict]:
+    """Convert location summaries with visual analysis into structured data matching iOS model"""
     import uuid
 
     locations = []
@@ -142,14 +285,26 @@ def parse_locations_from_summary(location_summaries: List[Dict], itinerary_text:
         dates = loc_summary.get('dates', [])
         visit_date = dates[0] if dates else None
 
-        # Create basic activities from location
-        activities = generate_activities_for_location(loc_summary['name'], itinerary_text)
+        # Use activities from visual analysis if available
+        activities = []
+        if loc_summary.get('activities'):
+            for activity_data in loc_summary['activities']:
+                activities.append({
+                    'id': str(uuid.uuid4()),
+                    'title': activity_data.get('title', 'Activity'),
+                    'description': activity_data.get('description', ''),
+                    'time': None,
+                    'aiGenerated': True
+                })
+        else:
+            # Fallback to basic activity
+            activities = generate_activities_for_location(loc_summary['name'], itinerary_text)
 
         # Generate proper UUID for location
         location_uuid = str(uuid.uuid4())
 
         location = {
-            'id': location_uuid,  # Changed to proper UUID
+            'id': location_uuid,
             'name': loc_summary['name'],
             'coordinate': loc_summary['coordinates'],  # iOS expects 'coordinate' (singular)
             'visitDate': visit_date,
@@ -161,6 +316,11 @@ def parse_locations_from_summary(location_summaries: List[Dict], itinerary_text:
         locations.append(location)
 
     return locations
+
+
+def parse_locations_from_summary(location_summaries: List[Dict], itinerary_text: str) -> List[Dict]:
+    """Convert location summaries into structured data matching iOS model (fallback)"""
+    return parse_locations_with_activities(location_summaries, itinerary_text)
 
 
 def generate_activities_for_location(location_name: str, itinerary_text: str) -> List[Dict]:

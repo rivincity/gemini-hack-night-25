@@ -264,28 +264,6 @@ struct AddVacationView: View {
         
         print("🎯 [Backend] Decoding response...")
         
-        // Backend returns photo upload response, not vacation object
-        // We need to create a vacation from the uploaded photos
-        struct UploadResponse: Codable {
-            let count: Int
-            let message: String
-            let photos: [UploadedPhoto]
-        }
-        
-        struct UploadedPhoto: Codable {
-            let id: String
-            let imageURL: String
-            let thumbnailURL: String?
-            let captureDate: String?
-            let location: LocationData?
-            let hasExif: Bool
-        }
-        
-        struct LocationData: Codable {
-            let latitude: Double
-            let longitude: Double
-        }
-        
         let uploadResponse = try JSONDecoder().decode(UploadResponse.self, from: data)
         print("✅ [Backend] Successfully decoded: \(uploadResponse.count) photos uploaded")
 
@@ -402,6 +380,15 @@ private struct VacationPhotoMetadata: Codable {
     var longitude: Double?
     var timestamp: String?
 }
+
+// MARK: - Response Models (local to this file)
+private struct UploadResponse: Codable {
+    let count: Int
+    let message: String
+    let photos: [UploadedPhoto]
+}
+
+// Note: UploadedPhoto is defined in APIService.swift and reused here
 
 // MARK: - Upload Errors
 enum UploadError: LocalizedError {

@@ -98,17 +98,46 @@ class GlobeViewController: UIViewController {
     
     // MARK: - Load Pins
     private func loadPins() {
-        mapView.removeAnnotations(mapView.annotations)
+        print("🗺️ Loading vacation pins from backend...")
         
-        for user in users {
-            for vacation in user.vacations {
-                for location in vacation.locations {
-                    let annotation = VacationAnnotation(
-                        location: location,
-                        vacation: vacation,
-                        user: user
-                    )
-                    mapView.addAnnotation(annotation)
+        Task {
+            do {
+                // Fetch vacations from backend
+                let vacations = try await APIService.shared.fetchVacations()
+                print("✅ Fetched \(vacations.count) vacations from backend")
+                
+                await MainActor.run {
+                    mapView.removeAnnotations(mapView.annotations)
+                    
+                    // Create annotations from fetched vacations
+                    for vacation in vacations {
+                        // Create a user object (owner info should be in vacation)
+                        let owner = User(
+                            id: UUID(),
+                            name: "You", // Default to "You" for now
+                            color: "#FF6B6B",
+                            vacations: [vacation]
+                        )
+                        
+                        // Create pins for each location in the vacation
+                        for location in vacation.locations {
+                            let annotation = VacationAnnotation(
+                                location: location,
+                                vacation: vacation,
+                                user: owner
+                            )
+                            mapView.addAnnotation(annotation)
+                            print("📍 Added pin for \(location.name)")
+                        }
+                    }
+                    
+                    print("✅ Loaded \(mapView.annotations.count) pins on map")
+                }
+            } catch {
+                print("❌ Error loading vacations: \(error.localizedDescription)")
+                // Fallback to empty map if error
+                await MainActor.run {
+                    mapView.removeAnnotations(mapView.annotations)
                 }
             }
         }
