@@ -73,7 +73,15 @@ struct HomeView: View {
             .navigationTitle("Roam")
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $showAddVacation) {
-                AddVacationView()
+                AddVacationView(onVacationCreated: { vacation in
+                    // Add vacation to current user
+                    if var currentUser = AuthService.shared.currentUser {
+                        currentUser.vacations.append(vacation)
+                        AuthService.shared.currentUser = currentUser
+                    }
+                    // Reload annotations to show new pins
+                    loadAnnotations()
+                })
             }
             .sheet(item: $selectedVacationItem) { item in
                 NavigationStack {
@@ -94,8 +102,17 @@ struct HomeView: View {
     }
     
     private func loadAnnotations() {
-        // Load vacation pins from mock data
-        annotations = User.mockUsers.flatMap { user in
+        print("🗺️ [HomeView] Loading annotations...")
+        
+        // Combine mock users and current user
+        var allUsers = User.mockUsers
+        if let currentUser = AuthService.shared.currentUser {
+            allUsers.append(currentUser)
+            print("🗺️ [HomeView] Current user has \(currentUser.vacations.count) vacations")
+        }
+        
+        // Load vacation pins from all users
+        annotations = allUsers.flatMap { user in
             user.vacations.flatMap { vacation in
                 vacation.locations.map { location in
                     VacationAnnotationItem(
@@ -110,6 +127,8 @@ struct HomeView: View {
                 }
             }
         }
+        
+        print("🗺️ [HomeView] Loaded \(annotations.count) annotations")
     }
 }
 

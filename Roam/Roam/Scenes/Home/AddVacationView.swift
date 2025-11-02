@@ -18,6 +18,8 @@ struct AddVacationView: View {
     @State private var showError = false
     @State private var errorMessage = ""
     
+    var onVacationCreated: ((Vacation) -> Void)?
+    
     var body: some View {
         NavigationStack {
             Form {
@@ -97,17 +99,28 @@ struct AddVacationView: View {
                 uploadProgress = 0.2
                 print("✅ [Upload] Loaded \(photosData.count) photos with metadata")
                 
-                // Step 2: Upload to backend (60%)
-                print("☁️ [Upload] Step 2: Uploading to backend...")
+                // Step 2: Upload photos to backend (40%)
+                print("☁️ [Upload] Step 2: Uploading photos to backend...")
                 print("🌐 [Upload] Endpoint: \(APIConfig.Endpoints.uploadPhotosBatch)")
                 uploadProgress = 0.3
-                let vacation = try await uploadToBackend(photos: photosData)
+                let uploadedPhotos = try await uploadPhotosToBackend(photos: photosData)
+                uploadProgress = 0.5
+                print("✅ [Upload] Photos uploaded: \(uploadedPhotos.count)")
+                
+                // Step 3: Generate itinerary and create vacation (50%)
+                print("🤖 [Upload] Step 3: Generating AI itinerary...")
+                uploadProgress = 0.6
+                let vacation = try await generateItineraryFromPhotos(uploadedPhotos: uploadedPhotos)
                 uploadProgress = 0.9
-                print("✅ [Upload] Upload successful! Vacation ID: \(vacation.id)")
+                print("✅ [Upload] Vacation created! Vacation ID: \(vacation.id)")
                 
                 // Step 3: Success (100%)
                 uploadProgress = 1.0
-                print("🎉 [Upload] Complete! Dismissing view...")
+                print("🎉 [Upload] Complete! Calling callback...")
+                
+                // Call the callback to update the map
+                onVacationCreated?(vacation)
+                
                 try? await Task.sleep(nanoseconds: 500_000_000)
                 
                 isUploading = false
@@ -143,22 +156,30 @@ struct AddVacationView: View {
             
             // Try to get PHAsset for EXIF data
             if let assetIdentifier = item.itemIdentifier {
+                print("🔍 [Metadata] Asset identifier: \(assetIdentifier)")
                 let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [assetIdentifier], options: nil)
                 if let asset = fetchResult.firstObject {
-                    metadata.latitude = asset.location?.coordinate.latitude
-                    metadata.longitude = asset.location?.coordinate.longitude
-                    metadata.timestamp = asset.creationDate?.ISO8601Format()
+                    print("✅ [Metadata] Found PHAsset for photo \(index + 1)")
                     
-                    if let lat = metadata.latitude, let lng = metadata.longitude {
-                        print("📍 [Metadata] Photo \(index + 1) location: \(lat), \(lng)")
+                    if let location = asset.location {
+                        metadata.latitude = location.coordinate.latitude
+                        metadata.longitude = location.coordinate.longitude
+                        print("📍 [Metadata] Photo \(index + 1) location: \(location.coordinate.latitude), \(location.coordinate.longitude)")
                     } else {
-                        print("⚠️ [Metadata] Photo \(index + 1) has no location data")
+                        print("⚠️ [Metadata] Photo \(index + 1) has no location data in PHAsset")
                     }
                     
-                    if let timestamp = metadata.timestamp {
-                        print("🕐 [Metadata] Photo \(index + 1) timestamp: \(timestamp)")
+                    if let creationDate = asset.creationDate {
+                        metadata.timestamp = creationDate.ISO8601Format()
+                        print("🕐 [Metadata] Photo \(index + 1) timestamp: \(metadata.timestamp ?? "nil")")
+                    } else {
+                        print("⚠️ [Metadata] Photo \(index + 1) has no creation date")
                     }
+                } else {
+                    print("⚠️ [Metadata] Could not fetch PHAsset for photo \(index + 1)")
                 }
+            } else {
+                print("⚠️ [Metadata] No asset identifier for photo \(index + 1)")
             }
             
             results.append((imageData, metadata))
@@ -174,7 +195,7 @@ struct AddVacationView: View {
         return results
     }
     
-    private func uploadToBackend(photos: [(image: Data, metadata: VacationPhotoMetadata)]) async throws -> Vacation {
+    private func uploadPhotosToBackend(photos: [(image: Data, metadata: VacationPhotoMetadata)]) async throws -> [UploadedPhotoResponse] {
         print("🌐 [Backend] Preparing upload to backend...")
         
         guard let url = URL(string: APIConfig.Endpoints.uploadPhotosBatch) else {
@@ -262,61 +283,171 @@ struct AddVacationView: View {
         
         print("🎯 [Backend] Decoding response...")
         
-        // Backend returns photo upload response, not vacation object
-        // We need to create a vacation from the uploaded photos
+        // Backend returns photo upload response
         struct UploadResponse: Codable {
             let count: Int
             let message: String
-            let photos: [UploadedPhoto]
-        }
-        
-        struct UploadedPhoto: Codable {
-            let id: String
-            let imageURL: String
-            let thumbnailURL: String?
-            let captureDate: String?
-            let location: LocationData?
-            let hasExif: Bool
-        }
-        
-        struct LocationData: Codable {
-            let latitude: Double
-            let longitude: Double
+            let photos: [UploadedPhotoResponse]
         }
         
         let uploadResponse = try JSONDecoder().decode(UploadResponse.self, from: data)
         print("✅ [Backend] Successfully decoded: \(uploadResponse.count) photos uploaded")
         
-        // Create a vacation object from the uploaded photos
-        let locations = uploadResponse.photos.compactMap { photo -> VacationLocation? in
-            guard let location = photo.location else { return nil }
+        return uploadResponse.photos
+    }
+    
+    private func generateItineraryFromPhotos(uploadedPhotos: [UploadedPhotoResponse]) async throws -> Vacation {
+        print("🤖 [AI] Preparing itinerary generation request...")
+        
+        guard let url = URL(string: APIConfig.Endpoints.generateItinerary) else {
+            print("❌ [AI] Invalid URL: \(APIConfig.Endpoints.generateItinerary)")
+            throw UploadError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        // Add auth token if available
+        if let token = AuthService.shared.authToken {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        
+        // Prepare photos data for AI
+        let photosForAI = uploadedPhotos.map { photo -> [String: Any] in
+            var photoDict: [String: Any] = [
+                "imageURL": photo.imageURL
+            ]
             
-            let coordinate = Coordinate(latitude: location.latitude, longitude: location.longitude)
-            let photoObj = Photo(
-                id: UUID(uuidString: photo.id) ?? UUID(),
-                imageURL: photo.imageURL,
-                captureDate: Date()
-            )
+            if let captureDate = photo.captureDate {
+                photoDict["captureDate"] = captureDate
+            }
+            
+            if let location = photo.location {
+                photoDict["coordinates"] = [
+                    "latitude": location.latitude,
+                    "longitude": location.longitude
+                ]
+            }
+            
+            return photoDict
+        }
+        
+        let requestBody: [String: Any] = [
+            "photos": photosForAI,
+            "title": vacationTitle
+        ]
+        
+        request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+        
+        print("🚀 [AI] Sending request to generate itinerary...")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        print("📥 [AI] Received response")
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw UploadError.invalidResponse
+        }
+        
+        print("📊 [AI] Status code: \(httpResponse.statusCode)")
+        
+        if let responseString = String(data: data, encoding: .utf8) {
+            print("📄 [AI] Response body: \(responseString)")
+        }
+        
+        guard httpResponse.statusCode == 200 || httpResponse.statusCode == 201 else {
+            throw UploadError.serverError(httpResponse.statusCode)
+        }
+        
+        // Decode vacation response
+        struct ItineraryResponse: Codable {
+            let vacation: VacationResponse
+            let message: String
+        }
+        
+        struct VacationResponse: Codable {
+            let id: String
+            let title: String
+            let startDate: String?
+            let endDate: String?
+            let aiGeneratedItinerary: String?
+            let locations: [LocationResponse]
+        }
+        
+        struct LocationResponse: Codable {
+            let name: String
+            let coordinate: CoordinateResponse
+            let visitDate: String?
+            let activities: [ActivityResponse]?
+        }
+        
+        struct CoordinateResponse: Codable {
+            let latitude: Double
+            let longitude: Double
+        }
+        
+        struct ActivityResponse: Codable {
+            let title: String
+            let description: String
+            let time: String?
+            let aiGenerated: Bool?
+        }
+        
+        let itineraryResponse = try JSONDecoder().decode(ItineraryResponse.self, from: data)
+        
+        // Convert to Vacation model
+        let dateFormatter = ISO8601DateFormatter()
+        
+        let locations = itineraryResponse.vacation.locations.map { loc -> VacationLocation in
+            let coordinate = Coordinate(latitude: loc.coordinate.latitude, longitude: loc.coordinate.longitude)
+            let visitDate = loc.visitDate.flatMap { dateFormatter.date(from: $0) } ?? Date()
+            
+            let activities = (loc.activities ?? []).map { act -> Activity in
+                Activity(
+                    id: UUID(),
+                    title: act.title,
+                    description: act.description,
+                    time: act.time.flatMap { dateFormatter.date(from: $0) } ?? Date(),
+                    aiGenerated: act.aiGenerated ?? true
+                )
+            }
             
             return VacationLocation(
-                name: "Unknown Location", // TODO: Reverse geocode
+                name: loc.name,
                 coordinate: coordinate,
-                visitDate: Date(),
-                photos: [photoObj],
-                activities: []
+                visitDate: visitDate,
+                photos: [],
+                activities: activities
             )
         }
         
         let vacation = Vacation(
-            title: vacationTitle,
-            startDate: Date(),
-            endDate: Date(),
-            locations: locations
+            id: UUID(uuidString: itineraryResponse.vacation.id) ?? UUID(),
+            title: itineraryResponse.vacation.title,
+            startDate: itineraryResponse.vacation.startDate.flatMap { dateFormatter.date(from: $0) } ?? Date(),
+            endDate: itineraryResponse.vacation.endDate.flatMap { dateFormatter.date(from: $0) } ?? Date(),
+            locations: locations,
+            aiGeneratedItinerary: itineraryResponse.vacation.aiGeneratedItinerary
         )
         
-        print("✅ [Backend] Created vacation with \(locations.count) locations")
+        print("✅ [AI] Successfully created vacation with \(locations.count) locations")
         return vacation
     }
+}
+
+// MARK: - Upload Response Types
+struct UploadedPhotoResponse: Codable {
+    let id: String
+    let imageURL: String
+    let thumbnailURL: String?
+    let captureDate: String?
+    let location: PhotoLocationData?
+    let hasExif: Bool
+}
+
+struct PhotoLocationData: Codable {
+    let latitude: Double
+    let longitude: Double
 }
 
 // MARK: - Photo Metadata (for upload)
