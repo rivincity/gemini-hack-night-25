@@ -75,13 +75,13 @@ class AuthService: ObservableObject {
         let loginResponse = try JSONDecoder().decode(LoginResponse.self, from: data)
 
         // Create User object from response
-        let user = User(
+        var user = User(
             id: UUID(uuidString: loginResponse.user.id) ?? UUID(),
             name: loginResponse.user.name,
-            profileImage: loginResponse.user.profileImage,
             color: loginResponse.user.color,
             vacations: []
         )
+        user.profileImage = loginResponse.user.profileImage
 
         self.authToken = loginResponse.session.access_token
         self.currentUser = user
@@ -141,7 +141,6 @@ class AuthService: ObservableObject {
         let user = User(
             id: UUID(uuidString: signupResponse.user.id) ?? UUID(),
             name: signupResponse.user.name,
-            profileImage: nil,
             color: signupResponse.user.color,
             vacations: []
         )
