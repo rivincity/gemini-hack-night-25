@@ -25,8 +25,27 @@ def generate_itinerary():
     }
     """
     try:
-        # Use a default user ID for demo (no auth required)
-        user_id = "demo-user-123"
+        # Use a fixed demo user UUID
+        demo_user_id = "00000000-0000-0000-0000-000000000001"
+        
+        # Ensure demo user exists in database
+        supabase = get_supabase_client()
+        try:
+            existing_user = supabase.table('users').select('id').eq('id', demo_user_id).execute()
+            if not existing_user.data or len(existing_user.data) == 0:
+                # Create demo user
+                demo_user = {
+                    'id': demo_user_id,
+                    'email': 'demo@roam.app',
+                    'name': 'Demo User',
+                    'color': '#FF6B6B'
+                }
+                supabase.table('users').insert(demo_user).execute()
+                print("✅ Created demo user in database")
+        except Exception as user_error:
+            print(f"⚠️ Demo user check: {user_error}")
+        
+        user_id = demo_user_id
 
         data = request.get_json()
         photos = data.get('photos', [])
@@ -35,7 +54,7 @@ def generate_itinerary():
         if not photos or len(photos) == 0:
             return jsonify({'error': 'No photos provided'}), 400
 
-        print(f"Generating itinerary from {len(photos)} photos")
+        print(f"Generating itinerary from {len(photos)} photos for user {user_id}")
 
         # Generate itinerary using Gemini
         result = generate_itinerary_from_photos(photos)

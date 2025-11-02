@@ -11,7 +11,7 @@ def get_vacations():
     """Get all vacations for user and their visible friends"""
     try:
         # Use a default user ID for demo (no auth required)
-        user_id = "demo-user-123"
+        user_id = "00000000-0000-0000-0000-000000000001"
 
         supabase = get_supabase_client()
 
@@ -138,7 +138,7 @@ def create_vacation():
     """Create a new vacation manually"""
     try:
         # Use a default user ID for demo (no auth required)
-        user_id = "demo-user-123"
+        user_id = "00000000-0000-0000-0000-000000000001"
 
         data = request.get_json()
 
@@ -171,7 +171,7 @@ def update_vacation(vacation_id):
     """Update vacation details"""
     try:
         # Use a default user ID for demo (no auth required)
-        user_id = "demo-user-123"
+        user_id = "00000000-0000-0000-0000-000000000001"
 
         data = request.get_json()
 
@@ -207,7 +207,7 @@ def delete_vacation(vacation_id):
     """Delete a vacation"""
     try:
         # Use a default user ID for demo (no auth required)
-        user_id = "demo-user-123"
+        user_id = "00000000-0000-0000-0000-000000000001"
 
         supabase = get_supabase_client()
 

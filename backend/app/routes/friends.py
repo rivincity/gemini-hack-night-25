@@ -13,7 +13,7 @@ def get_friends():
     try:
         # user = get_current_user()
         # user_id = user.user.id
-        user_id = "demo-user-123"  # Hardcoded for testing without auth
+        user_id = "00000000-0000-0000-0000-000000000001"  # Demo user UUID
 
         supabase = get_supabase_client()
 
@@ -70,7 +70,7 @@ def add_friend():
     try:
         # user = get_current_user()
         # user_id = user.user.id
-        user_id = "demo-user-123"  # Hardcoded for testing without auth
+        user_id = "00000000-0000-0000-0000-000000000001"  # Demo user UUID
 
         data = request.get_json()
         friend_email = data.get('email')
@@ -124,7 +124,7 @@ def accept_friend(friendship_id):
     try:
         # user = get_current_user()
         # user_id = user.user.id
-        user_id = "demo-user-123"  # Hardcoded for testing without auth
+        user_id = "00000000-0000-0000-0000-000000000001"  # Demo user UUID
 
         supabase = get_supabase_client()
 
@@ -151,7 +151,7 @@ def remove_friend(friend_id):
     try:
         # user = get_current_user()
         # user_id = user.user.id
-        user_id = "demo-user-123"  # Hardcoded for testing without auth
+        user_id = "00000000-0000-0000-0000-000000000001"  # Demo user UUID
 
         supabase = get_supabase_client()
 
@@ -174,7 +174,7 @@ def toggle_friend_visibility(friend_id):
     try:
         # user = get_current_user()
         # user_id = user.user.id
-        user_id = "demo-user-123"  # Hardcoded for testing without auth
+        user_id = "00000000-0000-0000-0000-000000000001"  # Demo user UUID
 
         data = request.get_json()
         is_visible = data.get('isVisible', True)
@@ -198,7 +198,7 @@ def get_friend_vacations(friend_id):
     try:
         # user = get_current_user()
         # user_id = user.user.id
-        user_id = "demo-user-123"  # Hardcoded for testing without auth
+        user_id = "00000000-0000-0000-0000-000000000001"  # Demo user UUID
 
         supabase = get_supabase_client()
 

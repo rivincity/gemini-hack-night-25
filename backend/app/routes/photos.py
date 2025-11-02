@@ -11,8 +11,8 @@ bp = Blueprint('photos', __name__, url_prefix='/api/photos')
 def upload_batch():
     """Upload multiple photos at once (from iOS album picker)"""
     try:
-        # Use a default user ID for demo (no auth required)
-        user_id = "demo-user-123"
+        # Use fixed demo user UUID (must match ai.py)
+        user_id = "00000000-0000-0000-0000-000000000001"
 
         # Get files from request
         if 'photos' not in request.files:
@@ -101,7 +101,7 @@ def upload_single():
     """Upload a single photo"""
     try:
         # Use a default user ID for demo (no auth required)
-        user_id = "demo-user-123"
+        user_id = "00000000-0000-0000-0000-000000000001"
 
         if 'photo' not in request.files:
             return jsonify({'error': 'No photo provided'}), 400
