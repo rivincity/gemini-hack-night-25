@@ -8,7 +8,10 @@
 import SwiftUI
 
 struct FriendProfileView: View {
-    let user: User
+    let friend: Friend
+    @State private var vacations: [Vacation] = []
+    @State private var isLoading = false
+    @State private var errorMessage: String?
     
     var body: some View {
         List {
@@ -17,19 +20,25 @@ struct FriendProfileView: View {
                     Spacer()
                     VStack(spacing: 16) {
                         Circle()
-                            .fill(Color(hex: user.color) ?? .blue)
+                            .fill(Color(hex: friend.color) ?? .blue)
                             .frame(width: 80, height: 80)
                             .overlay(
-                                Text(user.name.prefix(1))
+                                Text(friend.name.prefix(1))
                                     .font(.system(size: 36, weight: .bold))
                                     .foregroundColor(.white)
                             )
                         
-                        Text(user.name)
+                        Text(friend.name)
                             .font(.title2)
                             .fontWeight(.bold)
                         
-                        Text("\(user.vacations.count) vacation\(user.vacations.count != 1 ? "s" : "")")
+                        if let email = friend.email {
+                            Text(email)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Text("\(friend.vacationCount) vacation\(friend.vacationCount != 1 ? "s" : "")")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }
@@ -40,21 +49,59 @@ struct FriendProfileView: View {
             .listRowBackground(Color.clear)
             
             Section("Vacations") {
-                if user.vacations.isEmpty {
+                if isLoading {
+                    HStack {
+                        Spacer()
+                        ProgressView()
+                        Spacer()
+                    }
+                } else if let error = errorMessage {
+                    Text(error)
+                        .foregroundColor(.red)
+                        .italic()
+                } else if vacations.isEmpty {
                     Text("No vacations yet")
                         .foregroundColor(.secondary)
                         .italic()
                 } else {
-                    ForEach(user.vacations) { vacation in
-                        NavigationLink(destination: VacationDetailView(vacation: vacation, user: user)) {
-                            VacationRowView(vacation: vacation)
-                        }
+                    ForEach(vacations) { vacation in
+                        VacationRowView(vacation: vacation)
                     }
                 }
             }
         }
-        .navigationTitle(user.name)
+        .navigationTitle(friend.name)
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            loadFriendVacations()
+        }
+    }
+    
+    private func loadFriendVacations() {
+        isLoading = true
+        errorMessage = nil
+        
+        Task {
+            do {
+                let endpoint = "\(APIConfig.baseURL)\(APIConfig.apiVersion)/friends/\(friend.userId.uuidString)/vacations"
+                
+                struct FriendVacationsResponse: Codable {
+                    let vacations: [Vacation]
+                }
+                
+                let response: FriendVacationsResponse = try await APIService.shared.request(
+                    endpoint: endpoint,
+                    method: .get,
+                    requiresAuth: false  // No auth required for testing
+                )
+                
+                vacations = response.vacations
+            } catch {
+                errorMessage = "Failed to load vacations: \(error.localizedDescription)"
+            }
+            
+            isLoading = false
+        }
     }
 }
 
@@ -93,7 +140,14 @@ struct VacationRowView: View {
 
 #Preview {
     NavigationStack {
-        FriendProfileView(user: User.mockUsers[0])
+        FriendProfileView(friend: Friend(
+            userId: UUID(),
+            name: "Sarah",
+            email: "sarah@example.com",
+            color: "#4ECDC4",
+            vacationCount: 3,
+            locationCount: 5
+        ))
     }
 }
 

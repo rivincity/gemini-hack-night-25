@@ -13,15 +13,63 @@ import CoreLocation
 struct User: Identifiable, Codable {
     let id: UUID
     var name: String
+    var email: String?
     var profileImage: String?
     var color: String // Hex color for pin identification
     var vacations: [Vacation]
     
-    init(id: UUID = UUID(), name: String, color: String, vacations: [Vacation] = []) {
+    init(id: UUID = UUID(), name: String, color: String, vacations: [Vacation] = [], email: String? = nil) {
         self.id = id
         self.name = name
         self.color = color
         self.vacations = vacations
+        self.email = email
+    }
+}
+
+// MARK: - Friend Model
+struct Friend: Identifiable, Codable {
+    let id: UUID
+    let userId: UUID
+    let name: String
+    let email: String?
+    let color: String
+    let profileImage: String?
+    let vacationCount: Int
+    let locationCount: Int
+    let isVisible: Bool
+    
+    init(id: UUID = UUID(), userId: UUID, name: String, email: String? = nil, color: String, profileImage: String? = nil, vacationCount: Int = 0, locationCount: Int = 0, isVisible: Bool = true) {
+        self.id = id
+        self.userId = userId
+        self.name = name
+        self.email = email
+        self.color = color
+        self.profileImage = profileImage
+        self.vacationCount = vacationCount
+        self.locationCount = locationCount
+        self.isVisible = isVisible
+    }
+}
+
+// MARK: - Friend Request Model
+struct FriendRequest: Identifiable, Codable {
+    let id: UUID
+    let friendId: UUID
+    let friendName: String
+    let friendColor: String
+    let friendProfileImage: String?
+    let status: String // "pending", "accepted", "rejected"
+    let createdAt: Date
+    
+    init(id: UUID = UUID(), friendId: UUID, friendName: String, friendColor: String, friendProfileImage: String? = nil, status: String = "pending", createdAt: Date = Date()) {
+        self.id = id
+        self.friendId = friendId
+        self.friendName = friendName
+        self.friendColor = friendColor
+        self.friendProfileImage = friendProfileImage
+        self.status = status
+        self.createdAt = createdAt
     }
 }
 

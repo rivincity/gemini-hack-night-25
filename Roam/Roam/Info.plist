@@ -8,5 +8,7 @@
 	<string>Roam needs access to save photos to your library.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Roam needs access to your location to navigate the globe to your current position.</string>
+	<key>NSContactsUsageDescription</key>
+	<string>Roam needs access to your contacts to help you find and invite friends.</string>
 </dict>
 </plist>

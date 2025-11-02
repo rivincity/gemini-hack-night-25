@@ -31,6 +31,8 @@ struct HomeView: View {
     )
     @State private var annotations: [VacationAnnotationItem] = []
     @State private var mapCameraPosition = MapCameraPosition.automatic
+    @State private var isLoadingVacations = false
+    @State private var useMockData = true // Fallback to mock data if API fails
     
     var body: some View {
         NavigationStack {
@@ -121,6 +123,9 @@ struct HomeView: View {
             .onAppear {
                 loadAnnotations()
             }
+            .refreshable {
+                await refreshVacations()
+            }
             .onChange(of: locationManager.location) { oldValue, newValue in
                 // Navigate when location becomes available and we're waiting for it
                 if let newLocation = newValue,
@@ -143,6 +148,44 @@ struct HomeView: View {
     }
     
     private func loadAnnotations() {
+        isLoadingVacations = true
+        
+        Task {
+            do {
+                // Try to fetch from API
+                let vacationsWithUsers = try await APIService.shared.fetchAllVacationsWithFriends()
+                
+                // Convert to annotations
+                annotations = vacationsWithUsers.flatMap { (vacation, user) in
+                    vacation.locations.map { location in
+                        VacationAnnotationItem(
+                            id: location.id,
+                            title: location.name,
+                            coordinate: location.coordinate.clCoordinate,
+                            color: Color(hex: user.color) ?? .blue,
+                            location: location,
+                            vacation: vacation,
+                            user: user
+                        )
+                    }
+                }
+                
+                useMockData = false
+                print("✅ Loaded \(annotations.count) vacation pins from API")
+            } catch {
+                print("❌ Failed to load vacations from API: \(error)")
+                
+                // Fallback to mock data
+                if useMockData {
+                    loadMockAnnotations()
+                }
+            }
+            
+            isLoadingVacations = false
+        }
+    }
+    
+    private func loadMockAnnotations() {
         // Load vacation pins from mock data
         annotations = User.mockUsers.flatMap { user in
             user.vacations.flatMap { vacation in
@@ -158,6 +201,32 @@ struct HomeView: View {
                     )
                 }
             }
+        }
+        print("📍 Loaded \(annotations.count) vacation pins from mock data")
+    }
+    
+    private func refreshVacations() async {
+        do {
+            let vacationsWithUsers = try await APIService.shared.fetchAllVacationsWithFriends()
+            
+            annotations = vacationsWithUsers.flatMap { (vacation, user) in
+                vacation.locations.map { location in
+                    VacationAnnotationItem(
+                        id: location.id,
+                        title: location.name,
+                        coordinate: location.coordinate.clCoordinate,
+                        color: Color(hex: user.color) ?? .blue,
+                        location: location,
+                        vacation: vacation,
+                        user: user
+                    )
+                }
+            }
+            
+            useMockData = false
+            print("🔄 Refreshed \(annotations.count) vacation pins")
+        } catch {
+            print("❌ Failed to refresh vacations: \(error)")
         }
     }
     

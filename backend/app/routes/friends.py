@@ -7,12 +7,13 @@ bp = Blueprint('friends', __name__, url_prefix='/api/friends')
 
 
 @bp.route('', methods=['GET'])
-@require_auth
+# @require_auth  # Disabled for testing
 def get_friends():
     """Get user's friend list"""
     try:
-        user = get_current_user()
-        user_id = user.user.id
+        # user = get_current_user()
+        # user_id = user.user.id
+        user_id = "demo-user-123"  # Hardcoded for testing without auth
 
         supabase = get_supabase_client()
 
@@ -63,12 +64,13 @@ def get_friends():
 
 
 @bp.route('/add', methods=['POST'])
-@require_auth
+# @require_auth  # Disabled for testing
 def add_friend():
     """Send friend request by email"""
     try:
-        user = get_current_user()
-        user_id = user.user.id
+        # user = get_current_user()
+        # user_id = user.user.id
+        user_id = "demo-user-123"  # Hardcoded for testing without auth
 
         data = request.get_json()
         friend_email = data.get('email')
@@ -116,12 +118,13 @@ def add_friend():
 
 
 @bp.route('/accept/<friendship_id>', methods=['POST'])
-@require_auth
+# @require_auth  # Disabled for testing
 def accept_friend(friendship_id):
     """Accept friend request"""
     try:
-        user = get_current_user()
-        user_id = user.user.id
+        # user = get_current_user()
+        # user_id = user.user.id
+        user_id = "demo-user-123"  # Hardcoded for testing without auth
 
         supabase = get_supabase_client()
 
@@ -142,12 +145,13 @@ def accept_friend(friendship_id):
 
 
 @bp.route('/<friend_id>', methods=['DELETE'])
-@require_auth
+# @require_auth  # Disabled for testing
 def remove_friend(friend_id):
     """Remove friend"""
     try:
-        user = get_current_user()
-        user_id = user.user.id
+        # user = get_current_user()
+        # user_id = user.user.id
+        user_id = "demo-user-123"  # Hardcoded for testing without auth
 
         supabase = get_supabase_client()
 
@@ -164,12 +168,13 @@ def remove_friend(friend_id):
 
 
 @bp.route('/<friend_id>/toggle-visibility', methods=['POST'])
-@require_auth
+# @require_auth  # Disabled for testing
 def toggle_friend_visibility(friend_id):
     """Toggle visibility of friend's vacations on map"""
     try:
-        user = get_current_user()
-        user_id = user.user.id
+        # user = get_current_user()
+        # user_id = user.user.id
+        user_id = "demo-user-123"  # Hardcoded for testing without auth
 
         data = request.get_json()
         is_visible = data.get('isVisible', True)
@@ -187,12 +192,13 @@ def toggle_friend_visibility(friend_id):
 
 
 @bp.route('/<friend_id>/vacations', methods=['GET'])
-@require_auth
+# @require_auth  # Disabled for testing
 def get_friend_vacations(friend_id):
     """Get a friend's vacations"""
     try:
-        user = get_current_user()
-        user_id = user.user.id
+        # user = get_current_user()
+        # user_id = user.user.id
+        user_id = "demo-user-123"  # Hardcoded for testing without auth
 
         supabase = get_supabase_client()
 

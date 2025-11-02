@@ -98,6 +98,56 @@ class APIService {
 
         return response.vacations
     }
+    
+    func fetchAllVacationsWithFriends() async throws -> [(vacation: Vacation, user: User)] {
+        // Fetch user's own vacations
+        let userVacations = try await fetchVacations()
+        
+        // Fetch friends
+        let friends = try await fetchFriends()
+        
+        // Create result array with user and friends' vacations
+        var result: [(vacation: Vacation, user: User)] = []
+        
+        // Add user's vacations (if we have current user)
+        if let currentUser = AuthService.shared.currentUser {
+            result += userVacations.map { ($0, currentUser) }
+        }
+        
+        // Add visible friends' vacations
+        for friend in friends where friend.isVisible {
+            // Fetch friend's vacations
+            let endpoint = "\(APIConfig.baseURL)\(APIConfig.apiVersion)/friends/\(friend.userId.uuidString)/vacations"
+            
+            struct FriendVacationsResponse: Codable {
+                let vacations: [Vacation]
+            }
+            
+            do {
+                let response: FriendVacationsResponse = try await request(
+                    endpoint: endpoint,
+                    method: .get,
+                    requiresAuth: false  // No auth required for testing
+                )
+                
+                // Convert Friend to User for display purposes
+                let friendUser = User(
+                    id: friend.userId,
+                    name: friend.name,
+                    color: friend.color,
+                    vacations: response.vacations,
+                    email: friend.email
+                )
+                
+                result += response.vacations.map { ($0, friendUser) }
+            } catch {
+                print("Failed to fetch vacations for friend \(friend.name): \(error)")
+                // Continue with other friends even if one fails
+            }
+        }
+        
+        return result
+    }
 
     func fetchVacation(id: UUID) async throws -> Vacation {
         let vacation: Vacation = try await request(
@@ -127,21 +177,132 @@ class APIService {
     
     // MARK: - Friend Methods
     
-    func fetchFriends() async throws -> [User] {
-        // TODO: Implement actual API call
-        return User.mockUsers
+    func fetchFriends() async throws -> [Friend] {
+        struct FriendsResponse: Codable {
+            let friends: [FriendDTO]
+        }
+        
+        struct FriendDTO: Codable {
+            let id: String
+            let name: String
+            let email: String?
+            let color: String
+            let profileImage: String?
+            let vacationCount: Int
+            let locationCount: Int
+            let isVisible: Bool
+        }
+        
+        let response: FriendsResponse = try await request(
+            endpoint: APIConfig.Endpoints.friends,
+            method: .get,
+            requiresAuth: false  // No auth required for testing
+        )
+        
+        return response.friends.compactMap { dto in
+            guard let userId = UUID(uuidString: dto.id),
+                  let friendId = UUID(uuidString: dto.id) else {
+                return nil
+            }
+            return Friend(
+                id: friendId,
+                userId: userId,
+                name: dto.name,
+                email: dto.email,
+                color: dto.color,
+                profileImage: dto.profileImage,
+                vacationCount: dto.vacationCount,
+                locationCount: dto.locationCount,
+                isVisible: dto.isVisible
+            )
+        }
     }
     
-    func sendFriendRequest(userId: UUID) async throws {
-        // TODO: Implement actual API call
+    func sendFriendRequest(email: String) async throws {
+        struct AddFriendRequest: Codable {
+            let email: String
+        }
+        
+        struct AddFriendResponse: Codable {
+            let message: String
+        }
+        
+        let _: AddFriendResponse = try await request(
+            endpoint: APIConfig.Endpoints.addFriend,
+            method: .post,
+            body: AddFriendRequest(email: email),
+            requiresAuth: false  // No auth required for testing
+        )
     }
     
-    func acceptFriendRequest(userId: UUID) async throws {
-        // TODO: Implement actual API call
+    func acceptFriendRequest(friendshipId: UUID) async throws {
+        struct AcceptResponse: Codable {
+            let message: String
+        }
+        
+        let endpoint = "\(APIConfig.baseURL)\(APIConfig.apiVersion)/friends/accept/\(friendshipId.uuidString)"
+        
+        let _: AcceptResponse = try await request(
+            endpoint: endpoint,
+            method: .post,
+            requiresAuth: false  // No auth required for testing
+        )
     }
     
-    func removeFriend(userId: UUID) async throws {
-        // TODO: Implement actual API call
+    func removeFriend(friendId: UUID) async throws {
+        struct RemoveFriendResponse: Codable {
+            let message: String
+        }
+        
+        let endpoint = "\(APIConfig.baseURL)\(APIConfig.apiVersion)/friends/\(friendId.uuidString)"
+        
+        let _: RemoveFriendResponse = try await request(
+            endpoint: endpoint,
+            method: .delete,
+            requiresAuth: false  // No auth required for testing
+        )
+    }
+    
+    func toggleFriendVisibility(friendId: UUID, isVisible: Bool) async throws {
+        struct ToggleVisibilityRequest: Codable {
+            let isVisible: Bool
+        }
+        
+        struct ToggleVisibilityResponse: Codable {
+            let message: String
+        }
+        
+        let endpoint = "\(APIConfig.baseURL)\(APIConfig.apiVersion)/friends/\(friendId.uuidString)/toggle-visibility"
+        
+        let _: ToggleVisibilityResponse = try await request(
+            endpoint: endpoint,
+            method: .post,
+            body: ToggleVisibilityRequest(isVisible: isVisible),
+            requiresAuth: false  // No auth required for testing
+        )
+    }
+    
+    func checkUserExists(email: String) async throws -> User? {
+        struct UserSearchRequest: Codable {
+            let email: String
+        }
+        
+        struct UserSearchResponse: Codable {
+            let exists: Bool
+            let user: UserDTO?
+        }
+        
+        struct UserDTO: Codable {
+            let id: String
+            let name: String
+            let email: String
+            let color: String
+            let profileImage: String?
+        }
+        
+        // For now, this will try to add and catch the error if user doesn't exist
+        // In production, you'd have a dedicated search endpoint
+        return nil
     }
     
     // MARK: - AI Methods

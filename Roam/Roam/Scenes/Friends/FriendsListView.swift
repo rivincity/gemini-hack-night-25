@@ -8,23 +8,55 @@
 import SwiftUI
 
 struct FriendsListView: View {
-    @State private var friends: [User] = User.mockUsers
+    @State private var friends: [Friend] = []
     @State private var showAddFriend = false
-    @State private var visibleFriends: Set<UUID> = []
+    @State private var showFriendRequests = false
+    @State private var isLoading = false
+    @State private var errorMessage: String?
     
     var body: some View {
         NavigationStack {
-            List {
-                ForEach(friends) { friend in
-                    NavigationLink(destination: FriendProfileView(user: friend)) {
-                        FriendRowView(user: friend, isVisible: visibleFriends.contains(friend.id)) {
-                            toggleVisibility(for: friend)
+            Group {
+                if isLoading {
+                    ProgressView("Loading friends...")
+                } else if let error = errorMessage {
+                    ContentUnavailableView(
+                        "Error Loading Friends",
+                        systemImage: "exclamationmark.triangle",
+                        description: Text(error)
+                    )
+                } else if friends.isEmpty {
+                    ContentUnavailableView(
+                        "No Friends Yet",
+                        systemImage: "person.2",
+                        description: Text("Add friends to see their vacation pins on the globe")
+                    )
+                } else {
+                    List {
+                        ForEach(friends) { friend in
+                            NavigationLink(destination: FriendProfileView(friend: friend)) {
+                                FriendRowView(friend: friend) { isVisible in
+                                    toggleVisibility(for: friend, isVisible: isVisible)
+                                }
+                            }
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                Button(role: .destructive) {
+                                    removeFriend(friend)
+                                } label: {
+                                    Label("Remove", systemImage: "person.badge.minus")
+                                }
+                            }
                         }
                     }
                 }
             }
             .navigationTitle("Friends")
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button(action: { showFriendRequests = true }) {
+                        Image(systemName: "tray")
+                    }
+                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: { showAddFriend = true }) {
                         Image(systemName: "person.badge.plus")
@@ -34,45 +66,112 @@ struct FriendsListView: View {
             .sheet(isPresented: $showAddFriend) {
                 AddFriendView()
             }
+            .sheet(isPresented: $showFriendRequests) {
+                FriendRequestsView()
+            }
             .onAppear {
-                // Initialize all friends as visible
-                visibleFriends = Set(friends.map { $0.id })
+                loadFriends()
+            }
+            .refreshable {
+                await refreshFriends()
             }
         }
     }
     
-    private func toggleVisibility(for user: User) {
-        if visibleFriends.contains(user.id) {
-            visibleFriends.remove(user.id)
-        } else {
-            visibleFriends.insert(user.id)
+    private func loadFriends() {
+        isLoading = true
+        errorMessage = nil
+        
+        Task {
+            do {
+                friends = try await APIService.shared.fetchFriends()
+            } catch {
+                errorMessage = "Failed to load friends: \(error.localizedDescription)"
+            }
+            isLoading = false
+        }
+    }
+    
+    private func refreshFriends() async {
+        do {
+            friends = try await APIService.shared.fetchFriends()
+            errorMessage = nil
+        } catch {
+            errorMessage = "Failed to refresh friends: \(error.localizedDescription)"
+        }
+    }
+    
+    private func toggleVisibility(for friend: Friend, isVisible: Bool) {
+        Task {
+            do {
+                try await APIService.shared.toggleFriendVisibility(
+                    friendId: friend.userId,
+                    isVisible: isVisible
+                )
+                
+                // Update local state
+                if let index = friends.firstIndex(where: { $0.id == friend.id }) {
+                    friends[index] = Friend(
+                        id: friend.id,
+                        userId: friend.userId,
+                        name: friend.name,
+                        email: friend.email,
+                        color: friend.color,
+                        profileImage: friend.profileImage,
+                        vacationCount: friend.vacationCount,
+                        locationCount: friend.locationCount,
+                        isVisible: isVisible
+                    )
+                }
+            } catch {
+                print("Failed to toggle visibility: \(error)")
+            }
+        }
+    }
+    
+    private func removeFriend(_ friend: Friend) {
+        Task {
+            do {
+                try await APIService.shared.removeFriend(friendId: friend.userId)
+                
+                // Remove from local list
+                friends.removeAll { $0.id == friend.id }
+            } catch {
+                errorMessage = "Failed to remove friend: \(error.localizedDescription)"
+            }
         }
     }
 }
 
 // MARK: - Friend Row View
 struct FriendRowView: View {
-    let user: User
-    let isVisible: Bool
-    let onToggle: () -> Void
+    let friend: Friend
+    let onToggle: (Bool) -> Void
+    @State private var isVisible: Bool
+    
+    init(friend: Friend, onToggle: @escaping (Bool) -> Void) {
+        self.friend = friend
+        self.onToggle = onToggle
+        self._isVisible = State(initialValue: friend.isVisible)
+    }
     
     var body: some View {
         HStack(spacing: 12) {
             // Color indicator
             Circle()
-                .fill(Color(hex: user.color) ?? .blue)
+                .fill(Color(hex: friend.color) ?? .blue)
                 .frame(width: 40, height: 40)
                 .overlay(
-                    Text(user.name.prefix(1))
+                    Text(friend.name.prefix(1))
                         .font(.headline)
                         .foregroundColor(.white)
                 )
             
             VStack(alignment: .leading, spacing: 4) {
-                Text(user.name)
+                Text(friend.name)
                     .font(.headline)
                 
-                Text("\(user.vacations.count) trip\(user.vacations.count != 1 ? "s" : "")")
+                Text("\(friend.vacationCount) trip\(friend.vacationCount != 1 ? "s" : "")")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -81,7 +180,10 @@ struct FriendRowView: View {
             
             Toggle("", isOn: Binding(
                 get: { isVisible },
-                set: { _ in onToggle() }
+                set: { newValue in
+                    isVisible = newValue
+                    onToggle(newValue)
+                }
             ))
             .labelsHidden()
         }
