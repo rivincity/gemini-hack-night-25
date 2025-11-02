@@ -7,6 +7,7 @@
 
 import UIKit
 import MapKit
+import SwiftUI
 
 class GlobeViewController: UIViewController {
     
@@ -244,5 +245,10 @@ extension String {
         
         return UIColor(red: red, green: green, blue: blue, alpha: 1.0)
     }
+}
+
+// MARK: - SwiftUI Preview
+#Preview {
+    GlobeViewController()
 }
 

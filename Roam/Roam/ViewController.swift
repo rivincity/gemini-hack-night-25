@@ -6,6 +6,7 @@
 //
 
 import UIKit
+import SwiftUI
 
 class ViewController: UIViewController {
 
@@ -23,5 +24,10 @@ class ViewController: UIViewController {
         globeVC.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         globeVC.didMove(toParent: self)
     }
+}
+
+// MARK: - SwiftUI Preview
+#Preview {
+    ViewController()
 }
 

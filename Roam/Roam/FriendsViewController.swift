@@ -6,6 +6,7 @@
 //
 
 import UIKit
+import SwiftUI
 
 protocol FriendsViewControllerDelegate: AnyObject {
     func didUpdateFriendVisibility()
@@ -371,5 +372,11 @@ extension UserProfileViewController: UITableViewDataSource, UITableViewDelegate 
             navigationController?.pushViewController(detailVC, animated: true)
         }
     }
+}
+
+// MARK: - SwiftUI Preview
+#Preview {
+    let navController = UINavigationController(rootViewController: FriendsViewController(users: User.mockUsers))
+    return navController
 }
 

@@ -7,6 +7,7 @@
 
 import UIKit
 import SafariServices
+import SwiftUI
 
 class PinDetailViewController: UIViewController {
     
@@ -455,4 +456,35 @@ class PinDetailViewController: UIViewController {
 
 // Mock articles array for article button tagging
 private var mockArticles: [Article] = []
+
+// MARK: - SwiftUI Preview
+#Preview {
+    let mockLocation = VacationLocation(
+        name: "Paris, France",
+        coordinate: Coordinate(latitude: 48.8566, longitude: 2.3522),
+        visitDate: Date(),
+        photos: [
+            Photo(imageURL: "eiffel_tower", captureDate: Date())
+        ],
+        activities: [
+            Activity(title: "Eiffel Tower Visit", description: "Visited the iconic Eiffel Tower at sunset", time: Date(), aiGenerated: true),
+            Activity(title: "Louvre Museum", description: "Explored the world's largest art museum", time: Date().addingTimeInterval(3600), aiGenerated: true)
+        ]
+    )
+    
+    let mockVacation = Vacation(
+        title: "European Adventure",
+        startDate: Date().addingTimeInterval(-60*60*24*7),
+        endDate: Date(),
+        locations: [mockLocation]
+    )
+    
+    let mockUser = User(
+        name: "You",
+        color: "#FF6B6B",
+        vacations: [mockVacation]
+    )
+    
+    return PinDetailViewController(location: mockLocation, vacation: mockVacation, user: mockUser)
+}
 
