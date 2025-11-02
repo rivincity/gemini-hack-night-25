@@ -20,39 +20,104 @@ class APIService {
     }
     
     // MARK: - Generic Request Method
-    
+
     func request<T: Decodable>(
         endpoint: String,
         method: HTTPMethod = .get,
         body: Encodable? = nil,
         requiresAuth: Bool = true
     ) async throws -> T {
-        // TODO: Implement actual API calls
-        // For now, return mock data
-        throw APIError.notImplemented
+        guard let url = URL(string: endpoint) else {
+            throw APIError.invalidResponse
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = method.rawValue
+
+        // Add headers
+        var headers = APIConfig.Headers.defaultHeaders
+
+        // Add auth token if required
+        if requiresAuth {
+            if let token = AuthService.shared.authToken {
+                headers[APIConfig.Headers.authorization] = "Bearer \(token)"
+            } else {
+                throw APIError.unauthorized
+            }
+        }
+
+        for (key, value) in headers {
+            request.setValue(value, forHTTPHeaderField: key)
+        }
+
+        // Encode body if provided
+        if let body = body {
+            request.httpBody = try JSONEncoder().encode(body)
+        }
+
+        // Execute request
+        let (data, response) = try await session.data(for: request)
+
+        // Check response status
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+
+        switch httpResponse.statusCode {
+        case 200...299:
+            // Success - decode response
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            do {
+                return try decoder.decode(T.self, from: data)
+            } catch {
+                print("Decoding error: \(error)")
+                throw APIError.decodingError
+            }
+        case 401:
+            throw APIError.unauthorized
+        case 404:
+            throw APIError.notFound
+        default:
+            throw APIError.serverError(httpResponse.statusCode)
+        }
     }
     
     // MARK: - Vacation Methods
-    
+
     func fetchVacations() async throws -> [Vacation] {
-        // TODO: Implement actual API call
-        // For now, return mock data
-        return User.mockUsers.flatMap { $0.vacations }
-    }
-    
-    func fetchVacation(id: UUID) async throws -> Vacation {
-        // TODO: Implement actual API call
-        guard let vacation = User.mockUsers
-            .flatMap({ $0.vacations })
-            .first(where: { $0.id == id }) else {
-            throw APIError.notFound
+        struct VacationsResponse: Codable {
+            let vacations: [Vacation]
         }
+
+        let response: VacationsResponse = try await request(
+            endpoint: APIConfig.Endpoints.vacations,
+            method: .get,
+            requiresAuth: true
+        )
+
+        return response.vacations
+    }
+
+    func fetchVacation(id: UUID) async throws -> Vacation {
+        let vacation: Vacation = try await request(
+            endpoint: APIConfig.Endpoints.vacation(id: id.uuidString),
+            method: .get,
+            requiresAuth: true
+        )
+
         return vacation
     }
-    
+
     func createVacation(vacation: Vacation) async throws -> Vacation {
-        // TODO: Implement actual API call
-        return vacation
+        let createdVacation: Vacation = try await request(
+            endpoint: APIConfig.Endpoints.createVacation,
+            method: .post,
+            body: vacation,
+            requiresAuth: true
+        )
+
+        return createdVacation
     }
     
     func uploadPhotos(vacationId: UUID, photos: [Data]) async throws -> [Photo] {

@@ -9,21 +9,16 @@ import Foundation
 
 struct APIConfig {
     // MARK: - Base URLs
-    static let baseURL = "https://api.roamapp.com" // TODO: Replace with actual backend URL
-    static let apiVersion = "/v1"
+    static let baseURL = "http://localhost:5000" // Local Flask backend
+    static let apiVersion = "/api"
     
     // MARK: - Endpoints
     struct Endpoints {
         // Authentication
         static let login = "\(baseURL)\(apiVersion)/auth/login"
-        static let register = "\(baseURL)\(apiVersion)/auth/register"
+        static let signup = "\(baseURL)\(apiVersion)/auth/signup"
         static let logout = "\(baseURL)\(apiVersion)/auth/logout"
-        static let refreshToken = "\(baseURL)\(apiVersion)/auth/refresh"
-        
-        // Users
-        static let currentUser = "\(baseURL)\(apiVersion)/users/me"
-        static let updateProfile = "\(baseURL)\(apiVersion)/users/me"
-        static let userVacations = "\(baseURL)\(apiVersion)/users/me/vacations"
+        static let currentUser = "\(baseURL)\(apiVersion)/auth/me"
         
         // Friends
         static let friends = "\(baseURL)\(apiVersion)/friends"
@@ -37,11 +32,14 @@ struct APIConfig {
             "\(baseURL)\(apiVersion)/vacations/\(id)"
         }
         static let createVacation = "\(baseURL)\(apiVersion)/vacations"
-        static let uploadPhotos = "\(baseURL)\(apiVersion)/vacations/photos"
-        
+
+        // Photos
+        static let uploadPhotos = "\(baseURL)\(apiVersion)/photos/upload"
+        static let uploadPhotosBatch = "\(baseURL)\(apiVersion)/photos/upload/batch"
+
         // AI Services
-        static let generateItinerary = "\(baseURL)\(apiVersion)/ai/itinerary"
-        static let analyzePhotos = "\(baseURL)\(apiVersion)/ai/analyze"
+        static let generateItinerary = "\(baseURL)\(apiVersion)/ai/generate-itinerary"
+        static let analyzePhoto = "\(baseURL)\(apiVersion)/ai/analyze-photo"
         
         // Articles
         static func articles(location: String) -> String {
@@ -76,7 +74,7 @@ struct APIConfig {
     // MARK: - Feature Flags
     struct Features {
         static let enableAIGeneration = true
-        static let enablePhotoUpload = false // Coming soon
+        static let enablePhotoUpload = true // Backend ready!
         static let enableRealTimeFriends = false // Coming soon
         static let enableOfflineMode = false // Coming soon
     }
