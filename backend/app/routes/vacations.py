@@ -7,12 +7,11 @@ bp = Blueprint('vacations', __name__, url_prefix='/api/vacations')
 
 
 @bp.route('', methods=['GET'])
-@require_auth
 def get_vacations():
     """Get all vacations for user and their visible friends"""
     try:
-        user = get_current_user()
-        user_id = user.user.id
+        # Use a default user ID for demo (no auth required)
+        user_id = "demo-user-123"
 
         supabase = get_supabase_client()
 
@@ -114,7 +113,6 @@ def build_vacation_response(vacation, supabase):
 
 
 @bp.route('/<vacation_id>', methods=['GET'])
-@require_auth
 def get_vacation(vacation_id):
     """Get specific vacation details"""
     try:
@@ -136,12 +134,11 @@ def get_vacation(vacation_id):
 
 
 @bp.route('', methods=['POST'])
-@require_auth
 def create_vacation():
     """Create a new vacation manually"""
     try:
-        user = get_current_user()
-        user_id = user.user.id
+        # Use a default user ID for demo (no auth required)
+        user_id = "demo-user-123"
 
         data = request.get_json()
 
@@ -170,12 +167,11 @@ def create_vacation():
 
 
 @bp.route('/<vacation_id>', methods=['PUT'])
-@require_auth
 def update_vacation(vacation_id):
     """Update vacation details"""
     try:
-        user = get_current_user()
-        user_id = user.user.id
+        # Use a default user ID for demo (no auth required)
+        user_id = "demo-user-123"
 
         data = request.get_json()
 
@@ -207,12 +203,11 @@ def update_vacation(vacation_id):
 
 
 @bp.route('/<vacation_id>', methods=['DELETE'])
-@require_auth
 def delete_vacation(vacation_id):
     """Delete a vacation"""
     try:
-        user = get_current_user()
-        user_id = user.user.id
+        # Use a default user ID for demo (no auth required)
+        user_id = "demo-user-123"
 
         supabase = get_supabase_client()
 

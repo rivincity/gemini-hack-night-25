@@ -9,15 +9,10 @@ import SwiftUI
 
 @main
 struct RoamApp: App {
-    @StateObject private var authService = AuthService.shared
-    
     var body: some Scene {
         WindowGroup {
-            if authService.isAuthenticated {
-                MainTabView()
-            } else {
-                LoginView()
-            }
+            // Skip login - go directly to main app
+            MainTabView()
         }
     }
 }

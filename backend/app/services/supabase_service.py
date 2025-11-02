@@ -1,21 +1,24 @@
-from supabase import create_client, Client
+from supabase import Client
 from flask import current_app
-from functools import lru_cache
 
-@lru_cache()
+_supabase_client = None
+
 def get_supabase_client() -> Client:
     """Get or create Supabase client singleton"""
-    url = current_app.config['SUPABASE_URL']
-    key = current_app.config['SUPABASE_KEY']
-    
-    # Create client with options to avoid proxy parameter issue
-    options = {
-        'schema': 'public',
-        'auto_refresh_token': True,
-        'persist_session': True
-    }
-    
-    return create_client(url, key)
+    global _supabase_client
+
+    if _supabase_client is None:
+        url = current_app.config['SUPABASE_URL']
+        key = current_app.config['SUPABASE_KEY']
+
+        try:
+            # Use Client directly to avoid proxy parameter issue
+            _supabase_client = Client(url, key)
+        except Exception as e:
+            print(f"Error creating Supabase client: {str(e)}")
+            raise e
+
+    return _supabase_client
 
 def verify_token(token: str):
     """Verify JWT token and return user"""

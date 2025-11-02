@@ -220,20 +220,12 @@ class GlobeViewController: UIViewController {
             throw APIError.invalidResponse
         }
 
-        // CRITICAL: Check authentication first
-        guard let token = AuthService.shared.authToken else {
-            print("❌ ERROR: No auth token available")
-            throw APIError.unauthorized
-        }
-
-        print("✅ DEBUG: Starting photo upload")
+        print("✅ DEBUG: Starting photo upload (no auth)")
         print("📸 DEBUG: Uploading \(imageData.count) photos")
         print("🔗 DEBUG: Endpoint: \(APIConfig.Endpoints.uploadPhotosBatch)")
-        print("🔐 DEBUG: Auth token exists: true")
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 
         // Create multipart/form-data body
         let boundary = UUID().uuidString
@@ -284,20 +276,13 @@ class GlobeViewController: UIViewController {
             throw APIError.invalidResponse
         }
 
-        // CRITICAL: Check authentication first
-        guard let token = AuthService.shared.authToken else {
-            print("❌ ERROR: No auth token available for AI generation")
-            throw APIError.unauthorized
-        }
-
-        print("🤖 DEBUG: Starting AI itinerary generation")
+        print("🤖 DEBUG: Starting AI itinerary generation (no auth)")
         print("📸 DEBUG: Processing \(photos.count) photos")
         print("🔗 DEBUG: Endpoint: \(APIConfig.Endpoints.generateItinerary)")
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 
         // Create request body
         let requestBody: [String: Any] = [

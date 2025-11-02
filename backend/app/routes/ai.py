@@ -8,7 +8,6 @@ bp = Blueprint('ai', __name__, url_prefix='/api/ai')
 
 
 @bp.route('/generate-itinerary', methods=['POST'])
-@require_auth
 def generate_itinerary():
     """
     Generate AI itinerary from uploaded photos
@@ -26,8 +25,8 @@ def generate_itinerary():
     }
     """
     try:
-        user = get_current_user()
-        user_id = user.user.id
+        # Use a default user ID for demo (no auth required)
+        user_id = "demo-user-123"
 
         data = request.get_json()
         photos = data.get('photos', [])
@@ -136,7 +135,6 @@ def generate_itinerary():
 
 
 @bp.route('/analyze-photo', methods=['POST'])
-@require_auth
 def analyze_photo():
     """Analyze a single photo using Gemini Vision"""
     try:

@@ -9,12 +9,11 @@ bp = Blueprint('photos', __name__, url_prefix='/api/photos')
 
 
 @bp.route('/upload/batch', methods=['POST'])
-@require_auth
 def upload_batch():
     """Upload multiple photos at once (from iOS album picker)"""
     try:
-        user = get_current_user()
-        user_id = user.user.id
+        # Use a default user ID for demo (no auth required)
+        user_id = "demo-user-123"
 
         # Get files from request
         if 'photos' not in request.files:
@@ -105,12 +104,11 @@ def process_single_photo(file, user_id: str) -> dict:
 
 
 @bp.route('/upload', methods=['POST'])
-@require_auth
 def upload_single():
     """Upload a single photo"""
     try:
-        user = get_current_user()
-        user_id = user.user.id
+        # Use a default user ID for demo (no auth required)
+        user_id = "demo-user-123"
 
         if 'photo' not in request.files:
             return jsonify({'error': 'No photo provided'}), 400
@@ -133,7 +131,6 @@ def upload_single():
 
 
 @bp.route('/<vacation_id>', methods=['GET'])
-@require_auth
 def get_vacation_photos(vacation_id):
     """Get all photos for a vacation"""
     try:
