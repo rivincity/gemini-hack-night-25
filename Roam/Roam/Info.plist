@@ -6,5 +6,7 @@
 	<string>Roam needs access to your photos to create vacation itineraries with AI.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Roam needs access to save photos to your library.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Roam needs access to your location to navigate the globe to your current position.</string>
 </dict>
 </plist>
