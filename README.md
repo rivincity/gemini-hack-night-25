@@ -2,6 +2,12 @@
 
 **Built for Gemini Hack Night 2025**
 
+<p align="center">
+  <a href="[https://bitcamp.umd.edu](https://gdg.community.dev/gdg-on-campus-university-of-maryland-college-park-united-states/)" target="_blank">
+    <img src="https://img.shields.io/badge/Bitcamp%202025-Hackathon%20Winner-blueviolet?style=for-the-badge&logo=trophy" alt="Gemini Hack Night 2025"/>
+  </a>
+</p>
+
 Created by Rivan Parikh, Samik Wangneo, Eswar Karavadi, Purab Shah
 
 ---
