@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="[https://bitcamp.umd.edu](https://gdg.community.dev/gdg-on-campus-university-of-maryland-college-park-united-states/)" target="_blank">
-    <img src="https://img.shields.io/badge/Google Developer Student Club%202025-Hackathon%20Winner-blueviolet?style=for-the-badge&logo=trophy" alt="Gemini Hack Night 2025"/>
+    <img src="https://img.shields.io/badge/Google Developer Student Club%202025-Hackathon%20Winner - General Track -blueviolet?style=for-the-badge&logo=trophy" alt="Gemini Hack Night 2025"/>
   </a>
 </p>
 
