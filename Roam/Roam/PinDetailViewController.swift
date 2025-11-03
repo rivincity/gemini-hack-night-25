@@ -465,7 +465,11 @@ class PinDetailViewController: UIViewController {
         
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
-        dateLabel.text = "Visited: \(formatter.string(from: location.visitDate))"
+        if let visitDate = location.visitDate {
+            dateLabel.text = "Visited: \(formatter.string(from: visitDate))"
+        } else {
+            dateLabel.text = "Visit date not specified"
+        }
     }
     
     // MARK: - Actions

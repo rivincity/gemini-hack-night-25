@@ -106,18 +106,39 @@ class GlobeViewController: UIViewController {
                 let vacations = try await APIService.shared.fetchVacations()
                 print("✅ Fetched \(vacations.count) vacations from backend")
                 
+                if vacations.isEmpty {
+                    print("⚠️ No vacations found!")
+                }
+                
                 await MainActor.run {
+                    let oldAnnotationCount = mapView.annotations.count
                     mapView.removeAnnotations(mapView.annotations)
+                    print("🗑️ Removed \(oldAnnotationCount) old annotations")
                     
                     // Create annotations from fetched vacations
-                    for vacation in vacations {
-                        // Create a user object (owner info should be in vacation)
-                        let owner = User(
-                            id: UUID(),
-                            name: "You", // Default to "You" for now
-                            color: "#FF6B6B",
-                            vacations: [vacation]
-                        )
+                    for (index, vacation) in vacations.enumerated() {
+                        print("📦 Processing vacation \(index + 1): \(vacation.title)")
+                        print("   - Locations count: \(vacation.locations.count)")
+                        
+                        // Create a user object from vacation owner or use demo user
+                        let owner: User
+                        if let vacationOwner = vacation.owner {
+                            owner = User(
+                                id: vacationOwner.id,
+                                name: vacationOwner.name,
+                                color: vacationOwner.color,
+                                vacations: [vacation],
+                                email: "demo@roam.app"
+                            )
+                        } else {
+                            owner = User(
+                                id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
+                                name: "Demo User",
+                                color: "#FF6B6B",
+                                vacations: [vacation],
+                                email: "demo@roam.app"
+                            )
+                        }
                         
                         // Create pins for each location in the vacation
                         for location in vacation.locations {
@@ -127,14 +148,19 @@ class GlobeViewController: UIViewController {
                                 user: owner
                             )
                             mapView.addAnnotation(annotation)
-                            print("📍 Added pin for \(location.name)")
+                            print("📍 Added pin for \(location.name) at (\(location.coordinate.latitude), \(location.coordinate.longitude))")
                         }
                     }
                     
                     print("✅ Loaded \(mapView.annotations.count) pins on map")
+                    
+                    if mapView.annotations.count == 0 {
+                        print("⚠️ WARNING: No pins were added to the map!")
+                    }
                 }
             } catch {
                 print("❌ Error loading vacations: \(error.localizedDescription)")
+                print("❌ Full error: \(error)")
                 // Fallback to empty map if error
                 await MainActor.run {
                     mapView.removeAnnotations(mapView.annotations)
@@ -204,10 +230,17 @@ class GlobeViewController: UIViewController {
 
                 // Dismiss loading and show success
                 await MainActor.run {
-                    loadingAlert.dismiss(animated: true) {
-                        self.showSuccessAlert(vacation)
-                        self.loadPins() // Reload to show new vacation
-                    }
+                    loadingAlert.dismiss(animated: true)
+                }
+                
+                // Wait a bit for the UI to settle
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                
+                // Reload pins to show new vacation
+                await MainActor.run {
+                    print("🔄 Reloading pins after vacation creation...")
+                    self.loadPins()
+                    self.showSuccessAlert(vacation)
                 }
 
             } catch {

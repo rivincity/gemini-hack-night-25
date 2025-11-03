@@ -134,7 +134,11 @@ struct VacationRowView: View {
     private var dateRangeString: String {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
-        return "\(formatter.string(from: vacation.startDate)) - \(formatter.string(from: vacation.endDate))"
+        if let startDate = vacation.startDate, let endDate = vacation.endDate {
+            return "\(formatter.string(from: startDate)) - \(formatter.string(from: endDate))"
+        } else {
+            return "Dates not specified"
+        }
     }
 }
 

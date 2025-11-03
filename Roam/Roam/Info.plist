@@ -1,14 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-<dict>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Roam needs access to your photos to create vacation itineraries with AI.</string>
-	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Roam needs access to save photos to your library.</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Roam needs access to your location to navigate the globe to your current position.</string>
-	<key>NSContactsUsageDescription</key>
-	<string>Roam needs access to your contacts to help you find and invite friends.</string>
-</dict>
+<dict/>
 </plist>

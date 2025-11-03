@@ -93,7 +93,7 @@ class APIService {
         let response: VacationsResponse = try await request(
             endpoint: APIConfig.Endpoints.vacations,
             method: .get,
-            requiresAuth: true
+            requiresAuth: false  // No auth required for demo
         )
 
         return response.vacations
@@ -109,10 +109,15 @@ class APIService {
         // Create result array with user and friends' vacations
         var result: [(vacation: Vacation, user: User)] = []
         
-        // Add user's vacations (if we have current user)
-        if let currentUser = AuthService.shared.currentUser {
-            result += userVacations.map { ($0, currentUser) }
-        }
+        // Add user's vacations (use current user or demo user)
+        let currentUser = AuthService.shared.currentUser ?? User(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
+            name: "Demo User",
+            color: "#FF6B6B",
+            vacations: [],
+            email: "demo@roam.app"
+        )
+        result += userVacations.map { ($0, currentUser) }
         
         // Add visible friends' vacations
         for friend in friends where friend.isVisible {

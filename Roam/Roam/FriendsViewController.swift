@@ -342,7 +342,11 @@ extension UserProfileViewController: UITableViewDataSource, UITableViewDelegate 
         
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
-        config.secondaryText = "\(formatter.string(from: vacation.startDate)) - \(formatter.string(from: vacation.endDate))"
+        if let startDate = vacation.startDate, let endDate = vacation.endDate {
+            config.secondaryText = "\(formatter.string(from: startDate)) - \(formatter.string(from: endDate))"
+        } else {
+            config.secondaryText = "Dates not specified"
+        }
         config.image = UIImage(systemName: "airplane.circle.fill")
         
         if let color = user.color.hexToUIColor() {

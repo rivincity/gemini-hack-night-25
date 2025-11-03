@@ -77,8 +77,8 @@ struct FriendRequest: Identifiable, Codable {
 struct Vacation: Identifiable, Codable {
     let id: UUID
     var title: String
-    var startDate: Date
-    var endDate: Date
+    var startDate: Date?  // Optional - may not always have exact dates
+    var endDate: Date?    // Optional - may not always have exact dates
     var locations: [VacationLocation]
     var photoAlbumURL: String?
     var aiGeneratedItinerary: String?
@@ -90,7 +90,7 @@ struct Vacation: Identifiable, Codable {
         let color: String
     }
 
-    init(id: UUID = UUID(), title: String, startDate: Date, endDate: Date, locations: [VacationLocation] = [], owner: VacationOwner? = nil) {
+    init(id: UUID = UUID(), title: String, startDate: Date? = nil, endDate: Date? = nil, locations: [VacationLocation] = [], owner: VacationOwner? = nil) {
         self.id = id
         self.title = title
         self.startDate = startDate

@@ -10,6 +10,8 @@ import SwiftUI
 struct ProfileView: View {
     @StateObject private var authService = AuthService.shared
     @State private var showLogoutAlert = false
+    @State private var vacations: [Vacation] = []
+    @State private var isLoading = false
     
     var body: some View {
         NavigationStack {
@@ -32,7 +34,7 @@ struct ProfileView: View {
                                 .font(.title2)
                                 .fontWeight(.bold)
                             
-                            Text("\(authService.currentUser?.vacations.count ?? 0) vacation\(authService.currentUser?.vacations.count != 1 ? "s" : "")")
+                            Text("\(vacations.count) vacation\(vacations.count != 1 ? "s" : "")")
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                         }
@@ -44,9 +46,18 @@ struct ProfileView: View {
                 
                 // My Vacations
                 Section("My Vacations") {
-                    if let vacations = authService.currentUser?.vacations, !vacations.isEmpty {
+                    if isLoading {
+                        ProgressView()
+                    } else if !vacations.isEmpty {
                         ForEach(vacations) { vacation in
-                            NavigationLink(destination: VacationDetailView(vacation: vacation, user: authService.currentUser!)) {
+                            let currentUser = authService.currentUser ?? User(
+                                id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
+                                name: "Demo User",
+                                color: "#FF6B6B",
+                                vacations: [],
+                                email: "demo@roam.app"
+                            )
+                            NavigationLink(destination: VacationDetailView(vacation: vacation, user: currentUser)) {
                                 VacationRowView(vacation: vacation)
                             }
                         }
@@ -95,6 +106,12 @@ struct ProfileView: View {
                 }
             }
             .navigationTitle("Profile")
+            .onAppear {
+                loadVacations()
+            }
+            .refreshable {
+                await refreshVacations()
+            }
             .alert("Log Out", isPresented: $showLogoutAlert) {
                 Button("Cancel", role: .cancel) { }
                 Button("Log Out", role: .destructive) {
@@ -105,6 +122,29 @@ struct ProfileView: View {
             } message: {
                 Text("Are you sure you want to log out?")
             }
+        }
+    }
+    
+    private func loadVacations() {
+        isLoading = true
+        Task {
+            do {
+                vacations = try await APIService.shared.fetchVacations()
+                print("✅ Loaded \(vacations.count) vacations for profile")
+            } catch {
+                print("❌ Failed to load vacations: \(error)")
+                vacations = []
+            }
+            isLoading = false
+        }
+    }
+    
+    private func refreshVacations() async {
+        do {
+            vacations = try await APIService.shared.fetchVacations()
+            print("🔄 Refreshed \(vacations.count) vacations for profile")
+        } catch {
+            print("❌ Failed to refresh vacations: \(error)")
         }
     }
 }

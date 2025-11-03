@@ -108,12 +108,14 @@ struct AddVacationView: View {
                 
                 // Step 3: Success (100%)
                 uploadProgress = 1.0
-                print("🎉 [Upload] Complete! Dismissing view...")
+                print("🎉 [Upload] Complete! Reloading data...")
                 try? await Task.sleep(nanoseconds: 500_000_000)
 
-                isUploading = false
-                dismiss()
-                onVacationCreated?()
+                await MainActor.run {
+                    isUploading = false
+                    onVacationCreated?()
+                    dismiss()
+                }
                 
             } catch {
                 print("❌ [Upload] Error: \(error.localizedDescription)")
