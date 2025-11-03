@@ -3,8 +3,8 @@
 **Built for Gemini Hack Night 2025**
 
 <p align="center">
-  <a href="[https://bitcamp.umd.edu](https://gdg.community.dev/gdg-on-campus-university-of-maryland-college-park-united-states/)" target="_blank">
-    <img src="https://img.shields.io/badge/Google Developer Student Club%202025-Hackathon%20Winner - General Track -blueviolet?style=for-the-badge&logo=trophy" alt="Gemini Hack Night 2025"/>
+  <a href="https://gdg.community.dev/gdg-on-campus-university-of-maryland-college-park-united-states/" target="_blank">
+    <img src="https://img.shields.io/badge/Google%20Developer%20Student%20Club%202025-Hackathon%20Winner%20--%20General%20Track-blueviolet?style=for-the-badge&logo=trophy" alt="Gemini Hack Night 2025"/>
   </a>
 </p>
 
