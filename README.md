@@ -2,6 +2,8 @@
 
 An iOS app that transforms your vacation photos into beautiful, shareable travel memories on an interactive globe.
 
+Created by Rivan Parikh, Samik Wangneo, Eswar Karavadi, Purab Shah
+
 ## Project Overview
 
 Roam helps travelers:
