@@ -24,13 +24,15 @@ def create_app():
     app.config['GEMINI_API_KEY'] = os.getenv('GEMINI_API_KEY')
 
     # Register blueprints
-    from app.routes import auth, vacations, photos, ai, friends
+    from app.routes import auth, vacations, photos, ai, friends, history, sharing
 
     app.register_blueprint(auth.bp)
     app.register_blueprint(vacations.bp)
     app.register_blueprint(photos.bp)
     app.register_blueprint(ai.bp)
     app.register_blueprint(friends.bp)
+    app.register_blueprint(history.history_bp, url_prefix='/api/history')
+    app.register_blueprint(sharing.sharing_bp, url_prefix='/api/sharing')
 
     # Health check endpoint
     @app.route('/api/health')

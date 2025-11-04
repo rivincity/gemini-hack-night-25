@@ -402,3 +402,459 @@ Keep it concise (2-3 sentences)."""
             'analyzed': False,
             'error': str(e)
         }
+
+
+def generate_trip_name(locations: List[str], start_date: str, end_date: str, tags: List[str] = None) -> str:
+    """
+    Generate a catchy trip name using AI.
+
+    Args:
+        locations: List of location names visited
+        start_date: Start date in ISO format
+        end_date: End date in ISO format
+        tags: Optional list of trip tags (beach, adventure, cultural, etc.)
+
+    Returns:
+        A catchy 3-5 word trip name (e.g., "2023 Paris Cultural Escape")
+    """
+    try:
+        model = initialize_gemini()
+
+        # Parse dates to extract year and season
+        try:
+            start_dt = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+            year = start_dt.year
+            month = start_dt.month
+
+            # Determine season
+            if month in [12, 1, 2]:
+                season = "Winter"
+            elif month in [3, 4, 5]:
+                season = "Spring"
+            elif month in [6, 7, 8]:
+                season = "Summer"
+            else:
+                season = "Fall"
+        except:
+            year = datetime.now().year
+            season = ""
+
+        # Get primary location (first one)
+        primary_location = locations[0] if locations else "Unknown"
+
+        # Create prompt
+        tags_text = ", ".join(tags) if tags else "general travel"
+
+        prompt = f"""Generate a catchy and memorable trip name (3-5 words maximum) for a vacation.
+
+Trip Details:
+- Locations: {', '.join(locations[:3])}  (showing top 3)
+- Year: {year}
+- Season: {season}
+- Trip type/tags: {tags_text}
+
+Examples of good trip names:
+- "2023 Paris Cultural Escape"
+- "Summer Bali Beach Adventure"
+- "European Road Trip 2024"
+- "Tokyo Culinary Journey"
+- "Swiss Alps Winter Retreat"
+
+Generate ONE creative trip name that:
+1. Includes the year OR season
+2. Mentions the primary location
+3. Hints at the trip type/vibe
+4. Is memorable and catchy
+5. Is 3-5 words maximum
+
+Return ONLY the trip name, no other text or explanation."""
+
+        response = model.generate_content(prompt)
+        trip_name = response.text.strip()
+
+        # Clean up any quotes or extra formatting
+        trip_name = trip_name.strip('"\'').strip()
+
+        print(f"✅ Generated trip name: {trip_name}")
+        return trip_name
+
+    except Exception as e:
+        print(f"Error generating trip name: {str(e)}")
+        # Fallback to simple naming
+        primary_location = locations[0] if locations else "Vacation"
+        try:
+            year = datetime.fromisoformat(start_date.replace('Z', '+00:00')).year
+            return f"{year} {primary_location} Trip"
+        except:
+            return f"{primary_location} Trip"
+
+
+def generate_memory_highlights(vacation_data: Dict, photos: List[Dict]) -> List[Dict]:
+    """
+    Generate AI-powered memory highlights for a vacation.
+
+    Args:
+        vacation_data: Vacation details with locations and activities
+        photos: List of photo dicts with URLs
+
+    Returns:
+        List of highlight dicts with structure:
+        [{
+            'title': str,
+            'description': str,
+            'photo_id': str,
+            'photo_url': str,
+            'highlight_type': str,
+            'confidence': float
+        }]
+    """
+    try:
+        model = initialize_gemini()
+
+        # Download sample photos for analysis (up to 10 photos)
+        images = []
+        photo_map = {}  # Map index to photo ID
+
+        for i, photo in enumerate(photos[:10]):
+            image_url = photo.get('image_url') or photo.get('imageURL')
+            photo_id = photo.get('id')
+
+            if image_url and photo_id:
+                img = download_image(image_url)
+                if img:
+                    images.append(img)
+                    photo_map[len(images) - 1] = {
+                        'id': photo_id,
+                        'url': image_url
+                    }
+
+        if not images:
+            return []
+
+        # Get location names
+        locations = vacation_data.get('locations', [])
+        location_names = [loc.get('name', '') for loc in locations]
+
+        # Create prompt
+        prompt = f"""Analyze these vacation photos and identify 3-5 memorable highlights.
+
+Vacation Context:
+- Locations: {', '.join(location_names)}
+- Total photos analyzed: {len(images)}
+
+For each highlight, identify:
+1. A catchy title (3-5 words, e.g., "Golden Hour Beach Sunset", "Amazing Street Food")
+2. A nostalgic description (15-20 words that evoke the memory)
+3. The photo index (0 to {len(images)-1}) that best represents this highlight
+4. The highlight type from: scenic_view, culinary_experience, adventure, cultural, social, best_moment, landmark
+
+Return your response in this exact JSON format:
+{{
+  "highlights": [
+    {{
+      "title": "Highlight title",
+      "description": "Nostalgic description",
+      "photo_index": 0,
+      "type": "scenic_view",
+      "confidence": 0.9
+    }}
+  ]
+}}
+
+Look for:
+- Stunning scenic views (sunsets, landscapes, cityscapes)
+- Food and dining experiences
+- Cultural moments and landmarks
+- Adventure activities
+- Social moments
+- Unique or standout photos
+
+Return ONLY valid JSON, no other text."""
+
+        # Send to Gemini with images
+        content = [prompt] + images
+        response = model.generate_content(content)
+
+        # Parse JSON response
+        try:
+            response_text = response.text.strip()
+            # Remove markdown code blocks if present
+            if response_text.startswith('```json'):
+                response_text = response_text[7:]
+            if response_text.startswith('```'):
+                response_text = response_text[3:]
+            if response_text.endswith('```'):
+                response_text = response_text[:-3]
+            response_text = response_text.strip()
+
+            result = json.loads(response_text)
+            highlights_raw = result.get('highlights', [])
+
+            # Map photo indices to actual photo IDs
+            highlights = []
+            for highlight in highlights_raw:
+                photo_index = highlight.get('photo_index', 0)
+                if photo_index in photo_map:
+                    photo_info = photo_map[photo_index]
+                    highlights.append({
+                        'title': highlight.get('title', 'Memorable Moment'),
+                        'description': highlight.get('description', ''),
+                        'photo_id': photo_info['id'],
+                        'photo_url': photo_info['url'],
+                        'highlight_type': highlight.get('type', 'best_moment'),
+                        'confidence': highlight.get('confidence', 0.8)
+                    })
+
+            print(f"✅ Generated {len(highlights)} memory highlights")
+            return highlights
+
+        except json.JSONDecodeError as e:
+            print(f"⚠️ Failed to parse highlights JSON: {e}")
+            return []
+
+    except Exception as e:
+        print(f"Error generating memory highlights: {str(e)}")
+        return []
+
+
+def generate_trip_summary(vacation_data: Dict) -> str:
+    """
+    Generate a 2-3 sentence trip summary.
+
+    Args:
+        vacation_data: Vacation details with title, locations, dates
+
+    Returns:
+        A concise 2-3 sentence summary
+    """
+    try:
+        model = initialize_gemini()
+
+        locations = vacation_data.get('locations', [])
+        location_names = [loc.get('name', '') for loc in locations]
+
+        start_date = vacation_data.get('start_date', '')
+        end_date = vacation_data.get('end_date', '')
+
+        # Extract activities if available
+        activities = []
+        for loc in locations:
+            loc_activities = loc.get('activities', [])
+            activities.extend([act.get('title', '') for act in loc_activities[:2]])
+
+        prompt = f"""Write a concise, engaging summary (2-3 sentences) for this vacation.
+
+Trip Details:
+- Locations: {', '.join(location_names)}
+- Dates: {start_date} to {end_date}
+- Key activities: {', '.join(activities[:5])}
+
+Make it personal and nostalgic, as if recalling a cherished memory. Focus on the essence of the trip.
+
+Return ONLY the summary text, no other formatting."""
+
+        response = model.generate_content(prompt)
+        summary = response.text.strip()
+
+        print(f"✅ Generated trip summary: {summary[:50]}...")
+        return summary
+
+    except Exception as e:
+        print(f"Error generating trip summary: {str(e)}")
+        # Fallback summary
+        locations = vacation_data.get('locations', [])
+        if locations:
+            primary_location = locations[0].get('name', 'various locations')
+            return f"An unforgettable journey to {primary_location}, filled with amazing experiences and memories."
+        return "A memorable vacation filled with adventures and discoveries."
+
+
+def suggest_vacation_tags(photos: List[Dict], locations: List[str]) -> List[str]:
+    """
+    Suggest tags for a vacation based on photos and locations.
+
+    Args:
+        photos: List of photo dicts (can include URLs for visual analysis)
+        locations: List of location names
+
+    Returns:
+        List of suggested tags (e.g., ['beach', 'adventure', 'cultural'])
+    """
+    try:
+        model = initialize_gemini()
+
+        # Download sample photos for analysis (up to 5)
+        images = []
+        for photo in photos[:5]:
+            image_url = photo.get('image_url') or photo.get('imageURL')
+            if image_url:
+                img = download_image(image_url)
+                if img:
+                    images.append(img)
+
+        # Create prompt
+        prompt = f"""Analyze these vacation photos and locations to suggest relevant tags.
+
+Locations: {', '.join(locations)}
+Photos provided: {len(images)}
+
+Suggest 3-5 tags from this list that best describe this vacation:
+- beach
+- mountain
+- city
+- adventure
+- cultural
+- food
+- nature
+- relaxation
+- shopping
+- nightlife
+- historical
+- family
+- romantic
+- luxury
+- budget
+- photography
+- hiking
+- water_sports
+- wildlife
+
+Return your response in this exact JSON format:
+{{
+  "tags": ["tag1", "tag2", "tag3"]
+}}
+
+Return ONLY valid JSON, no other text."""
+
+        if images:
+            content = [prompt] + images
+        else:
+            content = [prompt]
+
+        response = model.generate_content(content)
+
+        # Parse JSON response
+        try:
+            response_text = response.text.strip()
+            # Remove markdown code blocks
+            if response_text.startswith('```json'):
+                response_text = response_text[7:]
+            if response_text.startswith('```'):
+                response_text = response_text[3:]
+            if response_text.endswith('```'):
+                response_text = response_text[:-3]
+            response_text = response_text.strip()
+
+            result = json.loads(response_text)
+            tags = result.get('tags', [])
+
+            print(f"✅ Suggested tags: {', '.join(tags)}")
+            return tags
+
+        except json.JSONDecodeError as e:
+            print(f"⚠️ Failed to parse tags JSON: {e}")
+            return []
+
+    except Exception as e:
+        print(f"Error suggesting tags: {str(e)}")
+        return []
+
+
+def cluster_photos_by_time_and_location(photos_data: List[Dict], spatial_threshold_km: float = 10.0, temporal_threshold_days: int = 3) -> List[Dict]:
+    """
+    Cluster photos by both spatial proximity AND temporal proximity.
+    This creates better trip grouping (e.g., weekend trip vs. week-long vacation).
+
+    Args:
+        photos_data: List of photo dicts with coordinates and capture_date
+        spatial_threshold_km: Max distance between photos in same cluster (km)
+        temporal_threshold_days: Max days between photos in same cluster
+
+    Returns:
+        List of clusters with combined spatial-temporal grouping
+    """
+    try:
+        # Filter photos with both location and date
+        valid_photos = [
+            p for p in photos_data
+            if p.get('coordinates') and p.get('capture_date')
+        ]
+
+        if not valid_photos:
+            return []
+
+        # Sort by capture date
+        valid_photos.sort(key=lambda x: x.get('capture_date', ''))
+
+        # First, cluster spatially
+        coordinates_list = [
+            {
+                **p['coordinates'],
+                'photo': p,
+                'capture_date': p.get('capture_date')
+            }
+            for p in valid_photos
+        ]
+
+        spatial_clusters = cluster_locations_by_proximity(coordinates_list, threshold_km=spatial_threshold_km)
+
+        # Then, split spatial clusters by temporal gaps
+        final_clusters = []
+
+        for spatial_cluster in spatial_clusters:
+            cluster_photos = spatial_cluster['coordinates']
+
+            # Sort by date
+            cluster_photos.sort(key=lambda x: x.get('capture_date', ''))
+
+            # Split by temporal gaps
+            current_group = [cluster_photos[0]]
+
+            for i in range(1, len(cluster_photos)):
+                prev_date_str = cluster_photos[i-1].get('capture_date', '')
+                curr_date_str = cluster_photos[i].get('capture_date', '')
+
+                try:
+                    prev_date = datetime.fromisoformat(prev_date_str.replace('Z', '+00:00'))
+                    curr_date = datetime.fromisoformat(curr_date_str.replace('Z', '+00:00'))
+
+                    days_diff = (curr_date - prev_date).days
+
+                    if days_diff <= temporal_threshold_days:
+                        # Same temporal cluster
+                        current_group.append(cluster_photos[i])
+                    else:
+                        # New temporal cluster - save previous and start new
+                        if current_group:
+                            final_clusters.append({
+                                'center': spatial_cluster['center'],
+                                'coordinates': current_group
+                            })
+                        current_group = [cluster_photos[i]]
+
+                except:
+                    # If date parsing fails, keep in current group
+                    current_group.append(cluster_photos[i])
+
+            # Add last group
+            if current_group:
+                final_clusters.append({
+                    'center': spatial_cluster['center'],
+                    'coordinates': current_group
+                })
+
+        print(f"✅ Temporal-spatial clustering: {len(spatial_clusters)} spatial → {len(final_clusters)} final clusters")
+        return final_clusters
+
+    except Exception as e:
+        print(f"Error in temporal-spatial clustering: {str(e)}")
+        # Fallback to spatial-only clustering
+        coordinates_list = [
+            {
+                **p['coordinates'],
+                'photo': p,
+                'capture_date': p.get('capture_date')
+            }
+            for p in photos_data if p.get('coordinates')
+        ]
+        return cluster_locations_by_proximity(coordinates_list, threshold_km=spatial_threshold_km)
